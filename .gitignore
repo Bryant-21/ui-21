@@ -1,0 +1,15 @@
+build/
+.xmake/
+vsxmake*/
+*.pdb
+*.dll
+*.exe
+*.lib
+*.exp
+*.ilk
+*.obj
+*.user
+preview_out/
+tmp/
+release/
+__pycache__/
