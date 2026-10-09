@@ -31,6 +31,12 @@ namespace b21ui::modern::layout {
         return std::clamp(barWidth - reserved, minimum, std::max(minimum, preferred));
     }
 
+    // A slider's range ends go inside its frame, at the edges, while both clear the centred value text
+    // with `padding` on each side of them; otherwise neither does, so a row never shows only one end.
+    constexpr bool SliderLimitsFit(float frameWidth, float minWidth, float maxWidth, float valueWidth, float padding) {
+        return (frameWidth - valueWidth) / 2 >= std::max(minWidth, maxWidth) + 2 * padding;
+    }
+
     struct WindowRect {
         float x = 0, y = 0, width = 0, height = 0;
     };

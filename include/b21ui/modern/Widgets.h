@@ -66,6 +66,17 @@ namespace b21ui::modern::w {
     // A row of joined toggle buttons; returns the index clicked or -1.
     int Segmented(const char* id, std::span<const char* const> labels, int current);
     bool Search(const char* id, char* buffer, std::size_t size, const char* hint, float width);
+    // Full-width sliders that always show the range they clamp to: the minimum and maximum sit
+    // muted inside the frame's edges, the current value in its centre (all three in `format`).
+    // Where the frame is too narrow for the ends they move into its tooltip. `id` is drawn by the
+    // caller, so it is a hidden ImGui id ("##opacity").
+    bool SliderFloat(const char* id, float& value, float min, float max, const char* format = "%.3g",
+                     ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp);
+    bool SliderInt(const char* id, int& value, int min, int max, const char* format = "%d",
+                   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp);
+    // The same range ends for a slider drawn by other code: the frame is [frameMin, frameMax], the
+    // texts are already formatted. Call right after that slider, so the tooltip fallback hovers it.
+    void SliderLimits(ImVec2 frameMin, ImVec2 frameMax, const char* minText, const char* maxText, const char* valueText);
     // "‹ 3 / 12 ›"; returns -1, 0 or +1.
     int Pager(const char* id, int page, int pageCount);
     void Tooltip(const char* text);

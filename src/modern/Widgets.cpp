@@ -348,6 +348,45 @@ namespace b21ui::modern::w {
         return changed;
     }
 
+    void SliderLimits(ImVec2 frameMin, ImVec2 frameMax, const char* minText, const char* maxText, const char* valueText) {
+        auto* font = ImGui::GetFont();
+        const float size = ImGui::GetFontSize() * 0.85F;
+        const auto width = [&](const char* text) { return font->CalcTextSizeA(size, FLT_MAX, 0.0F, text).x; };
+        const float valueWidth = ImGui::CalcTextSize(valueText).x;
+        const float padding = ImGui::GetStyle().FramePadding.x;
+        if (!layout::SliderLimitsFit(frameMax.x - frameMin.x, width(minText), width(maxText), valueWidth, padding)) {
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetItemTooltip("%s to %s", minText, maxText);
+            return;
+        }
+        auto* list = ImGui::GetWindowDrawList();
+        const float y = (frameMin.y + frameMax.y - size) / 2;
+        list->AddText(font, size, {frameMin.x + padding, y}, theme::Muted, minText);
+        list->AddText(font, size, {frameMax.x - padding - width(maxText), y}, theme::Muted, maxText);
+    }
+
+    bool SliderFloat(const char* id, float& value, float min, float max, const char* format, ImGuiSliderFlags flags) {
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        const bool changed = ImGui::SliderFloat(id, &value, min, max, format, flags);
+        char low[32], high[32], current[32];
+        ImFormatString(low, sizeof(low), format, min);
+        ImFormatString(high, sizeof(high), format, max);
+        ImFormatString(current, sizeof(current), format, value);
+        SliderLimits(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), low, high, current);
+        return changed;
+    }
+
+    bool SliderInt(const char* id, int& value, int min, int max, const char* format, ImGuiSliderFlags flags) {
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        const bool changed = ImGui::SliderInt(id, &value, min, max, format, flags);
+        char low[32], high[32], current[32];
+        ImFormatString(low, sizeof(low), format, min);
+        ImFormatString(high, sizeof(high), format, max);
+        ImFormatString(current, sizeof(current), format, value);
+        SliderLimits(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), low, high, current);
+        return changed;
+    }
+
     int Pager(const char* id, int page, int pageCount) {
         int delta = 0;
         ImGui::PushID(id);
@@ -414,9 +453,7 @@ namespace b21ui::modern::w {
         const auto slider = [&](const char* label, float& value, float low, float high, float display, const char* format) {
             ImGui::TextUnformatted(label);
             float shown = value * display;
-            ImGui::SetNextItemWidth(-1);
-            if (ImGui::SliderFloat(std::format("##{}", label).c_str(), &shown, low * display, high * display, format,
-                                   ImGuiSliderFlags_AlwaysClamp)) {
+            if (SliderFloat(std::format("##{}", label).c_str(), shown, low * display, high * display, format)) {
                 value = shown / display;
                 changed = true;
             }

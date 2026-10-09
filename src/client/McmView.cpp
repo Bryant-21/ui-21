@@ -98,19 +98,12 @@ namespace b21ui::mcm {
                 ImGui::TextUnformatted(row.text.c_str());
                 float value = static_cast<float>(Number(edits_.contains(static_cast<int>(index)) ? edits_[static_cast<int>(index)] : row.value));
                 const float low = options.value("min", 0.0F), high = options.value("max", 1.0F), step = options.value("step", 0.0F);
-                ImGui::SetNextItemWidth(-1);
-                if (ImGui::SliderFloat("##value", &value, low, std::max(low, high), step >= 1 ? "%.0f" : "%.2f", ImGuiSliderFlags_AlwaysClamp)) edits_[static_cast<int>(index)] = value;
+                if (w::SliderFloat("##value", value, low, std::max(low, high), step >= 1 ? "%.0f" : "%.2f")) edits_[static_cast<int>(index)] = value;
                 if (ImGui::IsItemDeactivatedAfterEdit()) {
                     if (step > 0) value = std::clamp(low + std::round((value - low) / step) * step, low, std::max(low, high));
                     submit(index, numericValue(value));
                     edits_.erase(static_cast<int>(index));
                 }
-                const auto minimum = w::Number(low), maximum = w::Number(high);
-                const float right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
-                ImGui::TextDisabled("%s", minimum.c_str());
-                ImGui::SameLine();
-                ImGui::SetCursorPosX(right - ImGui::CalcTextSize(maximum.c_str()).x);
-                ImGui::TextDisabled("%s", maximum.c_str());
             } else if (type == "stepper" || type == "dropdown" || type == "dropdownFiles") {
                 ImGui::TextUnformatted(row.text.c_str());
                 int chosen = static_cast<int>(Number(row.value));

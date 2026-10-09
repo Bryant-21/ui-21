@@ -161,7 +161,7 @@ as numeric controls. Hotkeys import and persist MCM's `Keybinds.json` format, re
 and execute Papyrus calls, console commands or `OnControlDown` / `OnControlUp` events.
 The Hotkeys page also lists definitions that have no dedicated config control.
 Pages, including Overview, Hotkeys and About, are icon-led navigation items beneath their mod.
-Sliders display the declared minimum and maximum; numeric inputs with both bounds also use sliders.
+Sliders display the declared minimum and maximum (`w::SliderFloat`); numeric inputs with both bounds also use sliders.
 
 Custom SWF images/panels and `CallExternalFunction` callbacks require Flash code. They are
 shown as unavailable, with an explanation, and require a native port. HTML labels are reduced
@@ -273,6 +273,9 @@ emails and secrets before publishing.
 
 Framework version, as in `B21UI_FRAMEWORK_VERSION`:
 
+- **12**: `modern::w::SliderFloat` / `SliderInt` show the minimum and maximum inside the frame's edges
+  with the value centred (in the tooltip when the frame is too narrow); `w::SliderLimits` adds them to a
+  slider drawn elsewhere. MCM sliders and the Appearance popover use them. No ABI change.
 - **11**: read-only keybinding catalog, state-aware collision checks, keyboard/mouse and Xbox
   vector maps, discovery coverage and cross-plugin binding providers. Rebinding is deferred.
 - **10**: native MCM replacement, settings categories, shared settings Appearance controls and
