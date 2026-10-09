@@ -107,6 +107,7 @@ namespace b21ui::modern::icon {
     inline constexpr const char* Refresh = "\xEF\x8B\xB1";      // f2f1
     inline constexpr const char* Left = "\xEF\x81\x93";         // f053
     inline constexpr const char* Right = "\xEF\x81\x94";        // f054
+    inline constexpr const char* Down = "\xEF\x81\xB8";
     inline constexpr const char* Travel = "\xEF\x84\xA4";       // f124
     inline constexpr const char* Plus = "\xEF\x81\xA7";         // f067
     inline constexpr const char* Trash = "\xEF\x87\xB8";        // f1f8

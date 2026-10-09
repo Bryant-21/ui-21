@@ -112,7 +112,8 @@ Without the file the page lists no links.
 ### Shared settings menu
 
 The elected host adds **UI 21 Settings** to Fallout 4's pause menu when at least one settings
-panel is registered. The window lists panels with icons under **UI 21** in its left sidebar.
+panel is registered. The window lists panels with icons under **UI 21** in its left sidebar,
+above **MCM** regardless of registration order.
 Panels are discovered across all loaded UI21 plugins; they do not belong in the window catalog.
 Switching panels keeps the cursor, input ownership and game pause active.
 
@@ -130,7 +131,9 @@ b21ui::Register(settings, {
 A settings client's `Draw` renders content in the supplied child window, without an outer
 `ImGui::Begin/End` or its own close/fullscreen controls. The framework initializes the modern
 theme and fonts and handles closing with Esc/B. `DrawSettingsNavigation` can draw that panel's
-page navigation directly under the selected mod; its default is empty. Use
+page navigation directly under the selected mod; its default is empty. The selected mod's
+chevron hides or shows its page list while keeping the current page open, so other panels
+remain easy to reach. Clients must update their state in `Draw` even when navigation is hidden. Use
 `modern::w::NavigationItem` for consistent icons, selection and controller hit areas. Interactive captures can own
 Esc/B through ImGui's key ownership API to prevent the host from closing while cancelling.
 An omitted icon defaults to a gear; an omitted label uses the client name.
@@ -140,7 +143,8 @@ and text scale to every settings panel, including panels in other DLLs; it uses
 
 `b21ui/Settings.h` exposes `SettingsPanels()` and `OpenSettings()` (last selected panel, then
 first registered). Opening a registered settings client directly selects it in the same host.
-DevTools registers a separate settings client while keeping its workbench ordinary. Tales'
+DevTools embeds its full workbench through a separate settings client and also retains its
+standalone hotkey window. Both use the same pages, actions and saved workspace. Tales'
 configuration is a settings client. Map and Music Player remain ordinary clients and can
 register separate settings panels later.
 

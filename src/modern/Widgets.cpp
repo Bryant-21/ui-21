@@ -269,13 +269,15 @@ namespace b21ui::modern::w {
         return pressed;
     }
 
-    bool NavigationItem(const char* id, const char* label, const char* glyph, bool selected) {
+    bool NavigationItem(const char* id, const char* label, const char* glyph, bool selected, bool* expanded) {
+        if (expanded) ImGui::BeginGroup();
         const auto pos = ImGui::GetCursorScreenPos();
         const float width = ImGui::GetContentRegionAvail().x, height = theme::Px(44);
+        const float toggleWidth = expanded ? height : 0.0F;
         ImGui::PushStyleColor(ImGuiCol_Header, {0, 0, 0, 0});
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0, 0, 0, 0});
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, {0, 0, 0, 0});
-        const bool pressed = ImGui::Selectable(id, selected, ImGuiSelectableFlags_None, {width, height});
+        const bool pressed = ImGui::Selectable(id, selected, ImGuiSelectableFlags_None, {width - toggleWidth, height});
         ImGui::PopStyleColor(3);
         auto* list = ImGui::GetWindowDrawList();
         const ImVec2 end{pos.x + width, pos.y + height};
@@ -287,12 +289,22 @@ namespace b21ui::modern::w {
         const float textSize = theme::Px(theme::BodySize), y = pos.y + (height - textSize) / 2;
         list->AddText(theme::CurrentFonts().body, textSize, {pos.x + theme::Px(14), y},
                       selected ? theme::Accent : theme::Muted, glyph);
-        list->PushClipRect({pos.x + theme::Px(44), pos.y}, end, true);
+        list->PushClipRect({pos.x + theme::Px(44), pos.y}, {end.x - toggleWidth, end.y}, true);
         list->AddText(theme::CurrentFonts().body, textSize, {pos.x + theme::Px(44), y},
                       selected ? theme::Text : theme::Muted, label);
         list->PopClipRect();
         if (selected) ImGui::SetItemDefaultFocus();
         Tooltip(label);
+        if (expanded) {
+            ImGui::SameLine(0, 0);
+            const float inset = (height - ImGui::GetFrameHeight()) / 2;
+            ImGui::SetCursorScreenPos({end.x - height + inset, pos.y + inset});
+            ImGui::PushID(id);
+            if (Icon("pages", *expanded ? icon::Down : icon::Right,
+                     *expanded ? "Hide pages" : "Show pages")) *expanded = !*expanded;
+            ImGui::PopID();
+            ImGui::EndGroup();
+        }
         return pressed;
     }
 

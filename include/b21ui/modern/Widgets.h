@@ -61,7 +61,7 @@ namespace b21ui::modern::w {
     bool Danger(const char* label, bool enabled = true, ImVec2 size = {0, 0});
     // Borderless square icon button; `active` tints it with the accent.
     bool Icon(const char* id, const char* glyph, const char* tooltip = nullptr, bool active = false, bool enabled = true);
-    bool NavigationItem(const char* id, const char* label, const char* glyph, bool selected);
+    bool NavigationItem(const char* id, const char* label, const char* glyph, bool selected, bool* expanded = nullptr);
     bool Switch(const char* label, bool on, bool enabled = true);
     // A row of joined toggle buttons; returns the index clicked or -1.
     int Segmented(const char* id, std::span<const char* const> labels, int current);

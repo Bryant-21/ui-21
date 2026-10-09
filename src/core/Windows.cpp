@@ -7,6 +7,7 @@ namespace b21ui {
         constexpr std::array kWindows{
             Window{"devTools", "Dev Tools", "\xEF\x97\xBD", L"B21_DevTools.dll", "B21_DevTools"},
             Window{"ui21Settings", "UI 21 Settings", "\xEF\x80\x93", nullptr, nullptr},
+            Window{"talesConfig", "TFA Config", "\xEF\x85\x8E", L"B21_TalesFromAppalachia.dll", "B21_TalesFromAppalachia"},
             Window{"autoConflictResolver", "Auto Conflict Resolver", "\xEF\x8E\x87", L"AutoConflictResolver.dll",
                    "AutoConflictResolver"},
             Window{"fullScreenMap", "Full Screen Map", "\xEF\x89\xB9", L"B21_FullScreenMap.dll", "B21_FullScreenMap"},

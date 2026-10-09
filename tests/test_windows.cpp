@@ -28,6 +28,19 @@ TEST_CASE("installed windows are the loaded ones, without the caller") {
     const auto loaded = [](const b21ui::Window& window) { return window.id != "musicPlayer"; };
     std::set<std::string_view> ids;
     for (const auto* window : b21ui::InstalledWindows("ui21Settings", loaded)) ids.insert(window->id);
-    CHECK(ids == std::set<std::string_view>{"devTools", "autoConflictResolver", "fullScreenMap"});
+    CHECK(ids == std::set<std::string_view>{"devTools", "talesConfig", "autoConflictResolver", "fullScreenMap"});
     CHECK(b21ui::InstalledWindows("devTools", [](const b21ui::Window&) { return false; }).empty());
+}
+
+TEST_CASE("Tales configuration has an installed-mod launcher shortcut") {
+    const auto windows = b21ui::InstalledWindows("devTools", [](const b21ui::Window& window) {
+        return window.module && std::wstring_view(window.module) == L"B21_TalesFromAppalachia.dll";
+    });
+    REQUIRE(windows.size() == 1);
+    CHECK(windows.front()->id == "talesConfig");
+    CHECK(windows.front()->label == "TFA Config");
+    CHECK(std::string_view(windows.front()->plugin) == "B21_TalesFromAppalachia");
+    CHECK(b21ui::InstalledWindows("talesConfig", [](const b21ui::Window& window) {
+        return window.id == "talesConfig";
+    }).empty());
 }

@@ -36,12 +36,17 @@ int main(int argc, char** argv) {
     static SettingsDemo first("Example Mod"), second("Another Mod");
     if (demoName == "keybindings") b21ui::preview::RegisterKeybindingsDemo();
     else if (demoName == "settings" || demoName == "mcm") {
+        B21UI_ClientId mcmPanel{};
+        if (demoName == "mcm") {
+            b21ui::preview::RegisterMcmDemo(argc, argv);
+            const auto panels = b21ui::SettingsPanels();
+            if (!panels.empty()) mcmPanel = panels.back().id;
+        }
         b21ui::Register(first, {.name = "exampleSettings", .settings = true, .settingsLabel = "Example Mod",
             .settingsIcon = b21ui::modern::icon::Gear});
         b21ui::Register(second, {.name = "otherSettings", .settings = true, .settingsLabel = "Another Mod",
             .settingsIcon = b21ui::modern::icon::Terminal});
-        if (demoName == "mcm") b21ui::preview::RegisterMcmDemo(argc, argv);
-        b21ui::OpenSettings(demoName == "mcm" && b21ui::SettingsPanels().size() >= 4 ? b21ui::SettingsPanels()[3].id : 0);
+        b21ui::OpenSettings(mcmPanel);
     }
     else if (demoName == "fo4-container") b21ui::Register(container, {"fo4-container", true, false});
     else if (demoName == "fo4-pause") b21ui::Register(pause, {"fo4-pause", true, false});

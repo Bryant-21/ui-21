@@ -19,7 +19,8 @@ namespace b21ui::client {
         const auto popupOpen = [] {
             return ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
         };
-        const bool backBlocked = ImGui::GetIO().WantTextInput || popupOpen();
+        // ImGui can dismiss a popup in NewFrame before the host sees its cancelling key.
+        const bool backBlocked = ImGui::GetIO().WantTextInput || popupWasOpen_ || popupOpen();
         bool close{};
         const bool armed = closeArmed_;
         if (!ImGui::IsKeyDown(ImGuiKey_Escape) && !ImGui::IsKeyDown(ImGuiKey_GamepadFaceRight)) closeArmed_ = true;
@@ -59,13 +60,15 @@ namespace b21ui::client {
                 const std::string category = SettingsCategory(panel.id);
                 if (std::ranges::find(categories, category) == categories.end()) categories.push_back(category);
             }
+            std::stable_partition(categories.begin(), categories.end(), [](const auto& category) { return category == "UI 21"; });
             for (const auto& category : categories) {
                 w::Heading(category.c_str());
                 for (const auto& panel : panels) {
                     if (category != SettingsCategory(panel.id)) continue;
                     ImGui::PushID(static_cast<int>(panel.id));
-                    if (w::NavigationItem("##mod", panel.label, panel.icon, panel.selected != 0)) OpenSettings(panel.id);
-                    if (panel.selected) {
+                    if (w::NavigationItem("##mod", panel.label, panel.icon, panel.selected != 0,
+                                          panel.selected ? &navigationExpanded_ : nullptr)) OpenSettings(panel.id);
+                    if (panel.selected && navigationExpanded_) {
                         ImGui::Indent(theme::Px(14));
                         client.DrawSettingsNavigation(frame);
                         ImGui::Unindent(theme::Px(14));
@@ -89,6 +92,7 @@ namespace b21ui::client {
         };
         if (armed && !backBlocked && !popupOpen() && !ImGui::GetIO().WantTextInput &&
             (back(ImGuiKey_Escape) || back(ImGuiKey_GamepadFaceRight))) close = true;
+        popupWasOpen_ = popupOpen();
         ImGui::PopFont();
         if (close) b21ui::Close(client);
     }
