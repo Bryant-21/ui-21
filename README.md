@@ -109,6 +109,146 @@ SupportLink{icon::Patreon, "Patreon", "https://www.patreon.com/you", IM_COL32(0x
 
 Without the file the page lists no links.
 
+### Shared settings menu
+
+The elected host adds **UI 21 Settings** to Fallout 4's pause menu when at least one settings
+panel is registered. The window lists panels with icons under **UI 21** in its left sidebar.
+Panels are discovered across all loaded UI21 plugins; they do not belong in the window catalog.
+Switching panels keeps the cursor, input ownership and game pause active.
+
+Opt in per client, so a mod can have an ordinary map/player/tools window and a separate settings
+panel. `name` is the stable client identifier; the label and icon are its navigation presentation:
+
+```cpp
+b21ui::Register(settings, {
+    .name = "MyPluginSettings", .modal = true, .pausesGame = true,
+    .settings = true, .settingsLabel = "My Plugin",
+    .settingsIcon = b21ui::modern::icon::Gear
+});
+```
+
+A settings client's `Draw` renders content in the supplied child window, without an outer
+`ImGui::Begin/End` or its own close/fullscreen controls. The framework initializes the modern
+theme and fonts and handles closing with Esc/B. `DrawSettingsNavigation` can draw that panel's
+page navigation directly under the selected mod; its default is empty. Use
+`modern::w::NavigationItem` for consistent icons, selection and controller hit areas. Interactive captures can own
+Esc/B through ImGui's key ownership API to prevent the host from closing while cancelling.
+An omitted icon defaults to a gear; an omitted label uses the client name.
+`settingsCategory` defaults to **UI 21**. The shared Appearance popover applies one theme, opacity
+and text scale to every settings panel, including panels in other DLLs; it uses
+`[Modern.UI21_Settings]` in `B21UI.ini`, falling back to `[Modern]`.
+
+`b21ui/Settings.h` exposes `SettingsPanels()` and `OpenSettings()` (last selected panel, then
+first registered). Opening a registered settings client directly selects it in the same host.
+DevTools registers a separate settings client while keeping its workbench ordinary. Tales'
+configuration is a settings client. Map and Music Player remain ordinary clients and can
+register separate settings panels later.
+
+### Native MCM replacement
+
+When **MCM.dll is absent**, the elected UI21 host provides a native MCM category. It reads
+`Data/MCM/Config/*/config.json`, `settings.ini`, `keybinds.json` and the player's overrides in
+`Data/MCM/Settings`. When MCM.dll is installed or loaded, the replacement category, Papyrus
+bindings and hotkey execution are all disabled. UI21's own settings panels remain available.
+No MCM movie, Flash panel or ActionScript controller is loaded by this implementation.
+
+The host supplies the existing `MCM` Papyrus API (version code 9), settings-change and menu
+lifecycle external events, globals and script properties, and typed `CallFunction` /
+`CallGlobalFunction` callbacks. It supports mod/page requirements, extension pages,
+conditional groups, shared/dynamic lists, file dropdowns, switches, sliders, steppers, text
+inputs, buttons, key inputs and hotkeys. Positioners expose their declared coordinate settings
+as numeric controls. Hotkeys import and persist MCM's `Keybinds.json` format, reject conflicts,
+and execute Papyrus calls, console commands or `OnControlDown` / `OnControlUp` events.
+The Hotkeys page also lists definitions that have no dedicated config control.
+Pages, including Overview, Hotkeys and About, are icon-led navigation items beneath their mod.
+Sliders display the declared minimum and maximum; numeric inputs with both bounds also use sliders.
+
+Custom SWF images/panels and `CallExternalFunction` callbacks require Flash code. They are
+shown as unavailable, with an explanation, and require a native port. HTML labels are reduced
+to plain text and line breaks. Mods that invoke private `root.mcm_loader` movie paths also need
+a native port. This is config/Papyrus compatibility, not compatibility with arbitrary Flash
+extensions. The upstream format/API reference is [reg2k/f4mcm](https://github.com/reg2k/f4mcm).
+
+`Scripts/Source/User/MCM.psc` defines the compatibility declarations. Compile it with
+`modkit mod compile ui21 --verify-stock` before staging consumers. `b21ui_install_assets`
+includes the compiled `data/Scripts/MCM.pex` in each consumer's staging tree. Retain existing
+MCM configs and saved settings when replacing the original DLL. Installing UI21 alone does
+not remove or disable MCM.dll.
+
+Native config preview (sample configs, no game access):
+
+```
+xmake run ui21_preview --demo mcm --hidden --size 1280x720 --screenshot build/mcm.png --frames 30
+```
+
+Use `--mcm-configs <directory>` to inspect other configuration files with the preview's fake
+backend. It prints write/callback/event payloads; it does not execute game callbacks.
+
+## Keybinding discovery (read-only V1)
+
+The elected host adds **Keybindings** under **UI 21**. It collects bound entries from all 33
+Fallout 4 control-map contexts, MCM keybind definitions/current assignments, and native mod
+providers. Opening the page or pressing Refresh takes a new game-thread snapshot. The list
+puts overlapping bindings first, with action, source, state, modifiers and an Activation column.
+Search accepts key names such as End and F3, and gestures such as hold. Source/state filters and Conflicts only narrow it.
+Bindings are never changed by this page.
+
+Activation distinguishes press, tap, hold, release and multiple taps. Native providers publish
+their actual gestures and hold durations. Fallout 4's control tables do not store that behavior;
+verified gameplay handler metadata covers movement, ready/reload/holster, Pip-Boy/light,
+melee/grenade, view/workshop, activate/grab/power armor, jump and attack controls. Details show
+the live `Controls` INI hold delays where available. Other game/menu handlers remain **unknown**.
+MCM function/console actions run on press; SendEvent bindings receive press/release events
+and held duration, so the mod's script decides its hold behavior. Missing provider metadata
+also stays unknown instead of defaulting to press. Press-versus-hold sharing remains a possible
+collision because an initial press can still reach both handlers.
+
+The optional input maps use native vector shapes: a full keyboard, five-button mouse with
+wheel directions (extra mouse inputs stay separate), and an Xbox controller with offset
+sticks, triggers, bumpers, D-pad, View/Menu and ABXY buttons. The controller shell and button
+positions are traced from the supplied Xbox One line drawing. Selecting a key filters its list;
+controller buttons and their action cards open binding details. Guide/Share are system
+buttons outside the game's XInput binding table. All views follow the shared settings style.
+
+Red **Overlap** means the declared key/modifiers/state/activation coincide. Amber **Possible** means
+scope or activation is unknown, gestures differ, or additional conditions apply. Separate known states do
+not conflict. Pip-Boy includes shared menu navigation; engine context priority and private
+menu handlers can further restrict execution. Intentional sharing (for example Fishing/Heal)
+remains visible with its conditions. Unknown Xbox inputs stay in the list with their raw code.
+
+F4SE exposes no public registry of all private native or Papyrus key handlers. **Discovery
+coverage** lists providers and installed native plugins without metadata; absence from the
+binding list does not establish that a plugin uses no keys. Providers disclose the bindings
+they publish, which may omit internal focused-UI shortcuts. MCM definitions are readable even
+with MCM.dll installed; this does not enable UI21's MCM replacement/category alongside it.
+
+Native clients publish a callback once, after their hotkeys register. Use the DLL basename
+as the provider ID. Registration does not create a settings panel for the publishing mod:
+
+```cpp
+#include <b21ui/Keybindings.h>
+b21ui::keys::Register("B21_MyMod", "My Mod", [] {
+    return std::vector<b21ui::keys::Binding>{
+        {"toggle", "Open my panel", "", b21ui::keys::FromVirtualKey(VK_END),
+         0, false, {"Gameplay"}, "press", "Feature enabled; no text entry"}
+    };
+});
+```
+
+Callbacks run on the game thread and must outlive the plugin. Empty source uses the provider
+label. Keyboard codes are DirectInput scan codes, mouse codes 256–265, Xbox codes 266–281;
+`FromGamepadMask` converts raw/BSButton gamepad masks. Modifiers are Shift=1, Ctrl=2, Alt=4.
+`exactModifiers=false` permits extra modifiers; true requires an exact match. Empty contexts
+mean unknown scope, `"*"` means all states; otherwise use the state names shown in the page,
+or a custom name for a focused UI. ABI v1 is extended with an optional provider registration
+function and keeps its original prefix. No Flash/ActionScript is involved.
+
+Desktop fixtures (sample bindings, no game access):
+
+```
+xmake run ui21_preview --demo keybindings --hidden --size 1280x720 --screenshot build/keybindings.png --frames 30
+```
+
 ## Supported runtimes
 
 Fallout 4 on Windows x64 with F4SE, on the runtimes your CommonLibF4 build targets. The
@@ -133,6 +273,13 @@ emails and secrets before publishing.
 
 Framework version, as in `B21UI_FRAMEWORK_VERSION`:
 
+- **11**: read-only keybinding catalog, state-aware collision checks, keyboard/mouse and Xbox
+  vector maps, discovery coverage and cross-plugin binding providers. Rebinding is deferred.
+- **10**: native MCM replacement, settings categories, shared settings Appearance controls and
+  per-context appearance state. MCM.dll presence suppresses the replacement runtime.
+- **9**: shared settings host, left navigation with per-panel icons, settings client flag and
+  optional page navigation. The host owns the pause-menu entry and cross-plugin registry.
+  Settings metadata and host functions extend ABI v1 without changing its existing prefix.
 - **8**: window launcher. `b21ui/Windows.h` lists the B21 windows; `w::WindowLauncher` draws a
   top-bar button that opens any other installed one via `kOpenWindowMessage`. No ABI change.
 - **7**: the modern theme follows the live HUD colour carried in each frame.

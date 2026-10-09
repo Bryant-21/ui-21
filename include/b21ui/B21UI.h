@@ -31,6 +31,11 @@ namespace b21ui {
         // Kit sizes grow with the display (height / 1080, never below 1). Views laid out in physical
         // pixels, like the map's former web UI, turn this off and scale with the text scale alone.
         bool scaleWithResolution = true;
+        // Draw this client's content inside UI 21 Settings, with a shared mod selector on the left.
+        bool settings = false;
+        const char* settingsLabel = "";
+        const char* settingsIcon = "";
+        const char* settingsCategory = "UI 21";
     };
 
     class Client {
@@ -38,6 +43,8 @@ namespace b21ui {
         virtual ~Client() = default;
         // Called every frame the client is open, with this client's ImGui context current.
         virtual void Draw(const FrameContext& frame) = 0;
+        // Optional page links below the shared settings mod selector; render thread, same context.
+        virtual void DrawSettingsNavigation(const FrameContext&) {}
         // Called once after the context, fonts and style exist; load textures here.
         virtual void OnContextCreated(const FrameContext&) {}
         virtual void OnFocusChanged(bool) {}

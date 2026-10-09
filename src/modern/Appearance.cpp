@@ -1,4 +1,5 @@
 #include "b21ui/Paths.h"
+#include "b21ui/Common.h"
 #include "b21ui/modern/AppearanceCodec.h"
 #include "b21ui/modern/Theme.h"
 
@@ -25,8 +26,7 @@ namespace b21ui::modern::theme {
         };
 
         Store& Current() {
-            static Store store;
-            return store;
+            return common::ContextSlot<Store>();
         }
 
         const std::filesystem::path& File() {
@@ -65,7 +65,11 @@ namespace b21ui::modern::theme {
 
     void SetAppearanceClient(std::string_view client, const Appearance& defaults) {
         auto& store = Current();
-        store.section = Wide(appearance::Section(client));
+        const auto section = Wide(appearance::Section(client));
+        if (store.section == section && store.loaded && store.defaults.backgroundOpacity == defaults.backgroundOpacity &&
+            store.defaults.textScale == defaults.textScale && store.defaults.tableTextSize == defaults.tableTextSize &&
+            store.defaults.family == defaults.family) return;
+        store.section = section;
         store.defaults = defaults;
         store.loaded = false;
     }

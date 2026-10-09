@@ -2,6 +2,7 @@
 #include "b21ui/B21UI.h"
 #include "client/InputMap.h"
 #include "client/PadPointer.h"
+#include "client/SettingsHost.h"
 #include "core/PadKeyboard.h"
 
 #include <atomic>
@@ -13,7 +14,8 @@ struct ImGuiContext;
 namespace b21ui::client {
     class ClientRuntime {
     public:
-        ClientRuntime(Client& client, std::string name, bool padPointer = true, bool scaleWithResolution = true);
+        ClientRuntime(Client& client, std::string name, bool padPointer = true, bool scaleWithResolution = true,
+                      bool settings = false);
         ~ClientRuntime();
         ClientRuntime(const ClientRuntime&) = delete;
         ClientRuntime& operator=(const ClientRuntime&) = delete;
@@ -29,6 +31,8 @@ namespace b21ui::client {
         Client& client_;
         std::string name_;
         bool scaleWithResolution_{true};
+        bool settings_{};
+        SettingsHost settingsHost_;
         ImGuiContext* context_{};
         ID3D11Device* device_{};
         bool backend_{};

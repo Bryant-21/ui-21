@@ -1,8 +1,27 @@
 #include "demo/DemoClient.h"
 #include "demo/Fo4Replicas.h"
 #include "preview/PreviewHost.h"
+#include "preview/McmDemo.h"
+#include "preview/KeybindingsDemo.h"
+#include "b21ui/Settings.h"
+#include "b21ui/modern/Widgets.h"
 
 #include <string_view>
+
+namespace {
+    class SettingsDemo final : public b21ui::Client {
+    public:
+        explicit SettingsDemo(const char* label) : label_(label) {}
+        void Draw(const b21ui::FrameContext&) override {
+            ImGui::SetCursorPos({24, 24});
+            b21ui::modern::w::Title(label_);
+            if (b21ui::modern::w::Switch("Enabled", enabled_)) enabled_ = !enabled_;
+        }
+    private:
+        const char* label_;
+        bool enabled_{};
+    };
+}
 
 int main(int argc, char** argv) {
     std::string_view demoName = "demo";
@@ -14,7 +33,17 @@ int main(int argc, char** argv) {
     static b21ui::demo::Fo4PauseReplica pause;
     static b21ui::demo::Fo4PauseReplica settings(b21ui::demo::Fo4PauseReplica::Start::Settings);
     static b21ui::demo::Fo4PauseReplica quit(b21ui::demo::Fo4PauseReplica::Start::QuitPrompt);
-    if (demoName == "fo4-container") b21ui::Register(container, {"fo4-container", true, false});
+    static SettingsDemo first("Example Mod"), second("Another Mod");
+    if (demoName == "keybindings") b21ui::preview::RegisterKeybindingsDemo();
+    else if (demoName == "settings" || demoName == "mcm") {
+        b21ui::Register(first, {.name = "exampleSettings", .settings = true, .settingsLabel = "Example Mod",
+            .settingsIcon = b21ui::modern::icon::Gear});
+        b21ui::Register(second, {.name = "otherSettings", .settings = true, .settingsLabel = "Another Mod",
+            .settingsIcon = b21ui::modern::icon::Terminal});
+        if (demoName == "mcm") b21ui::preview::RegisterMcmDemo(argc, argv);
+        b21ui::OpenSettings(demoName == "mcm" && b21ui::SettingsPanels().size() >= 4 ? b21ui::SettingsPanels()[3].id : 0);
+    }
+    else if (demoName == "fo4-container") b21ui::Register(container, {"fo4-container", true, false});
     else if (demoName == "fo4-pause") b21ui::Register(pause, {"fo4-pause", true, false});
     else if (demoName == "fo4-settings") b21ui::Register(settings, {"fo4-settings", true, false});
     else if (demoName == "fo4-quit") b21ui::Register(quit, {"fo4-quit", true, false});

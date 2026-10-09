@@ -18,6 +18,18 @@ namespace b21ui::modern::w {
         // Full pill radius in the Modern family, square in the game families.
         float Pill(float height) { return theme::CurrentAppearance().family == theme::Family::Modern ? height / 2 : 0.0F; }
 
+        void PositionPopover(const char* id, float width) {
+            if (!ImGui::IsPopupOpen(id)) return;
+            const auto* viewport = ImGui::GetMainViewport();
+            const auto anchor = ImGui::GetItemRectMax();
+            const float margin = theme::Px(8);
+            const float x = std::clamp(anchor.x - width, viewport->WorkPos.x + margin,
+                                       viewport->WorkPos.x + viewport->WorkSize.x - width - margin);
+            const float y = anchor.y + theme::Px(6);
+            ImGui::SetNextWindowPos({std::floor(x), std::floor(y)});
+            ImGui::SetNextWindowSizeConstraints({width, 0}, {width, std::max(1.0F, viewport->WorkPos.y + viewport->WorkSize.y - y - margin)});
+        }
+
         const nlohmann::json& EmptyObject() {
             static const nlohmann::json empty = nlohmann::json::object();
             return empty;
@@ -254,6 +266,33 @@ namespace b21ui::modern::w {
         ImGui::PopStyleColor(3);
         if (tooltip) Tooltip(tooltip);
         ImGui::PopID();
+        return pressed;
+    }
+
+    bool NavigationItem(const char* id, const char* label, const char* glyph, bool selected) {
+        const auto pos = ImGui::GetCursorScreenPos();
+        const float width = ImGui::GetContentRegionAvail().x, height = theme::Px(44);
+        ImGui::PushStyleColor(ImGuiCol_Header, {0, 0, 0, 0});
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0, 0, 0, 0});
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive, {0, 0, 0, 0});
+        const bool pressed = ImGui::Selectable(id, selected, ImGuiSelectableFlags_None, {width, height});
+        ImGui::PopStyleColor(3);
+        auto* list = ImGui::GetWindowDrawList();
+        const ImVec2 end{pos.x + width, pos.y + height};
+        if (selected) {
+            list->AddRectFilled(pos, end, theme::AccentSoft, theme::Round(6));
+            list->AddRectFilled({pos.x, pos.y + theme::Px(10)}, {pos.x + theme::Px(3), end.y - theme::Px(10)},
+                                theme::Accent, theme::Round(2));
+        } else if (ImGui::IsItemHovered()) list->AddRectFilled(pos, end, theme::Surface, theme::Round(6));
+        const float textSize = theme::Px(theme::BodySize), y = pos.y + (height - textSize) / 2;
+        list->AddText(theme::CurrentFonts().body, textSize, {pos.x + theme::Px(14), y},
+                      selected ? theme::Accent : theme::Muted, glyph);
+        list->PushClipRect({pos.x + theme::Px(44), pos.y}, end, true);
+        list->AddText(theme::CurrentFonts().body, textSize, {pos.x + theme::Px(44), y},
+                      selected ? theme::Text : theme::Muted, label);
+        list->PopClipRect();
+        if (selected) ImGui::SetItemDefaultFocus();
+        Tooltip(label);
         return pressed;
     }
 
@@ -520,12 +559,11 @@ namespace b21ui::modern::w {
         if (Icon("cog", icon::Gear, tooltip, state.open) && !state.openAtClick) state.toggleRequested = true;
         if (state.toggleRequested && !ImGui::IsPopupOpen("##quick")) {
             state.toggleRequested = false;
-            ImGui::SetNextWindowPos({ImGui::GetItemRectMax().x, ImGui::GetItemRectMax().y + theme::Px(6)}, ImGuiCond_Always, {1, 0});
             ImGui::OpenPopup("##quick");
         }
         const auto* viewport = ImGui::GetMainViewport();
-        const float width = std::min(theme::Px(340), viewport->WorkSize.x - 24);
-        ImGui::SetNextWindowSizeConstraints({width, 0}, {width, std::max(120.0F, viewport->WorkSize.y * 0.78F)});
+        const float width = std::min(theme::Px(340), viewport->WorkSize.x - theme::Px(16));
+        PositionPopover("##quick", width);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {theme::Px(16), theme::Px(14)});
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {theme::Px(8), theme::Px(8)});
         state.open = ImGui::BeginPopup("##quick", ImGuiWindowFlags_NoSavedSettings);
@@ -658,15 +696,15 @@ namespace b21ui::modern::w {
         const auto windows = InstalledWindows(selfId);
         if (windows.empty()) return false;
         if (Icon("windows", icon::Launch, "Open another B21 window")) {
-            ImGui::SetNextWindowPos({ImGui::GetItemRectMax().x, ImGui::GetItemRectMax().y + theme::Px(6)}, ImGuiCond_Always, {1, 0});
             ImGui::OpenPopup("##windows");
         }
         bool switched = false;
+        PositionPopover("##windows", std::min(theme::Px(236), ImGui::GetMainViewport()->WorkSize.x - theme::Px(16)));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {theme::Px(8), theme::Px(8)});
         if (ImGui::BeginPopup("##windows")) {
             for (const auto* window : windows) {
                 const auto label = std::format("{}  {}", window->glyph, window->label);
-                if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_None, {theme::Px(220), theme::Px(30)}))
+                if (ImGui::Selectable(label.c_str(), false, ImGuiSelectableFlags_None, {0, theme::Px(30)}))
                     switched = SwitchToWindow(self, window->id);
             }
             ImGui::EndPopup();

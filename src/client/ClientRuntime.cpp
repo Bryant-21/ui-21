@@ -2,6 +2,7 @@
 #include "client/PadKeyboardView.h"
 #include "b21ui/fo76/Style.h"
 #include "b21ui/Paths.h"
+#include "b21ui/modern/Theme.h"
 
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
@@ -11,8 +12,8 @@
 #include <cstddef>
 
 namespace b21ui::client {
-    ClientRuntime::ClientRuntime(Client& client, std::string name, bool padPointer, bool scaleWithResolution)
-        : client_(client), name_(std::move(name)), scaleWithResolution_(scaleWithResolution), pointer_(padPointer) {}
+    ClientRuntime::ClientRuntime(Client& client, std::string name, bool padPointer, bool scaleWithResolution, bool settings)
+        : client_(client), name_(std::move(name)), scaleWithResolution_(scaleWithResolution), settings_(settings), pointer_(padPointer) {}
 
     ClientRuntime::~ClientRuntime() {
         if (!context_) return;
@@ -63,6 +64,7 @@ namespace b21ui::client {
             sticks_ = {};
             pointer_.Reset();
             keyboard_ = {};
+            settingsHost_.Reset();
         }
         const auto& pad = common::PadTuning();
         // A text field the controller is typing into gets the on-screen keyboard, which takes the pad
@@ -89,10 +91,12 @@ namespace b21ui::client {
         if (!created_) {
             created_ = true;
             client_.OnContextCreated(ctx);
+            if (settings_) modern::theme::LoadFonts(PluginAssetDir() / "fonts");
         }
         ImGui_ImplDX11_NewFrame();
         ImGui::NewFrame();
-        client_.Draw(ctx);
+        if (settings_) settingsHost_.Draw(client_, ctx);
+        else client_.Draw(ctx);
         if (GImGui->PlatformImeData.WantTextInput && frame.activeDevice == B21UI_DEVICE_GAMEPAD)
             DrawPadKeyboard(keyboard_, common::UiScale());
         // The game-style pointer replaces ImGui's arrow; other shapes (text beam, resize) stay ImGui's.

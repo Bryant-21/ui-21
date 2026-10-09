@@ -1,0 +1,26 @@
+{
+  "modName": "SurvivalDemo",
+  "displayName": "Survival Settings",
+  "pluginRequirements": ["Fallout4.esm"],
+  "content": [
+    {"type": "section", "text": "SURVIVAL OPTIONS"},
+    {"type": "switcher", "text": "Enable survival adjustments", "id": "bEnabled:Main", "groupControl": 1,
+     "help": "Apply your survival preferences to the current game.", "valueOptions": {"sourceType": "ModSettingBool"}},
+    {"type": "slider", "text": "Incoming damage (%)", "id": "iDamage:Main", "groupCondition": 1,
+     "valueOptions": {"sourceType": "ModSettingInt", "min": 25, "max": 200, "step": 5},
+     "action": {"type": "CallGlobalFunction", "script": "SurvivalDemo", "function": "ApplyDamage", "params": ["{value}"]}},
+    {"type": "dropdown", "text": "Survival preset", "id": "iDifficulty:Main", "groupCondition": 1,
+     "valueOptions": {"sourceType": "ModSettingInt", "options": ["Relaxed", "Balanced", "Hardcore"]}},
+    {"type": "textinput", "text": "Profile name", "id": "sProfile:Main", "valueOptions": {"sourceType": "ModSettingString"}},
+    {"type": "button", "text": "Restore mod defaults", "action": {"type": "CallGlobalFunction", "script": "SurvivalDemo", "function": "Reset", "params": []}}
+  ],
+  "pages": [
+    {"pageDisplayName": "Hotkeys", "content": [
+      {"type": "section", "text": "SHORTCUTS"},
+      {"type": "hotkey", "text": "Quick save", "id": "QuickSave", "help": "Choose a keyboard, mouse or controller shortcut."}
+    ]},
+    {"pageDisplayName": "About", "content": [
+      {"type": "text", "text": "<b>Survival Settings</b><br/>A native preview of a standard MCM config.json file."}
+    ]}
+  ]
+}

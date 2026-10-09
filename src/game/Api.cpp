@@ -3,16 +3,21 @@
 
 #include "b21ui/B21UI.h"
 #include "b21ui/Tasks.h"
+#include "b21ui/Settings.h"
+#include "b21ui/Keybindings.h"
+#include "core/Keybindings.h"
 #include "client/ClientRuntime.h"
 #include "game/GameState.h"
 #include "game/Rendezvous.h"
 #include "game/Tasks.h"
+#include "game/McmRuntime.h"
 
 #include <spdlog/spdlog.h>
 
 #include <Windows.h>
 
 #include <memory>
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -22,6 +27,9 @@ namespace b21ui {
         struct Registered {
             Client* client{};
             std::string name;
+            std::string settingsLabel;
+            std::string settingsIcon;
+            std::string settingsCategory;
             ClientOptions options;
             std::unique_ptr<client::ClientRuntime> runtime;
             B21UI_ClientId id{};
@@ -32,6 +40,24 @@ namespace b21ui {
         std::vector<std::unique_ptr<Registered>> clients;
         const B21UI_HostApi* host{};
         std::uint32_t mainThread{};
+        struct KeyProvider {
+            std::string id, label, json;
+            std::function<std::vector<keys::Binding>()> read;
+            bool registered{};
+        };
+        std::vector<std::unique_ptr<KeyProvider>> keyProviders;
+
+        void RegisterKeysWithHost(KeyProvider& p) {
+            if (p.registered || !host || host->size < offsetof(B21UI_HostApi, registerKeybindings) + sizeof(host->registerKeybindings) ||
+                !host->registerKeybindings) return;
+            const B21UI_KeybindingProvider desc{sizeof(desc), p.id.c_str(), p.label.c_str(), &p, [](void* user) -> const char* {
+                auto& provider = *static_cast<KeyProvider*>(user);
+                try { provider.json = keys::Encode(provider.read()).dump(); }
+                catch (...) { provider.json = "null"; }
+                return provider.json.c_str();
+            }};
+            p.registered = host->registerKeybindings(&desc) != 0;
+        }
 
         Registered* Find(const Client& c) {
             for (auto& r : clients) if (r->client == &c) return r.get();
@@ -62,8 +88,10 @@ namespace b21ui {
             if (!host || r.id) return;
             const B21UI_ClientDesc desc{sizeof(B21UI_ClientDesc), r.name.c_str(),
                 r.options.modal ? static_cast<std::uint32_t>(B21UI_KIND_MODAL) : static_cast<std::uint32_t>(B21UI_KIND_OVERLAY),
-                r.options.pausesGame ? static_cast<std::uint32_t>(B21UI_FLAG_PAUSES_GAME) : 0u,
-                &r, &RenderThunk, &DeviceLostThunk, &FocusThunk};
+                (r.options.pausesGame ? static_cast<std::uint32_t>(B21UI_FLAG_PAUSES_GAME) : 0u) |
+                (r.options.settings ? static_cast<std::uint32_t>(B21UI_FLAG_SETTINGS) : 0u),
+                &r, &RenderThunk, &DeviceLostThunk, &FocusThunk, r.settingsLabel.c_str(), r.settingsIcon.c_str(),
+                r.settingsCategory.c_str()};
             r.id = host->registerClient(&desc);
             if (!r.id) spdlog::warn("B21UI: host refused client '{}'", r.name);
         }
@@ -76,15 +104,19 @@ namespace b21ui {
     }
 
     bool Register(Client& client, const ClientOptions& options) {
+        if (options.settings && !options.modal) return false;
         std::scoped_lock guard(mutex);
         if (Find(client)) return true;
         auto r = std::make_unique<Registered>();
         r->client = &client;
         r->name = options.name ? options.name : "";
+        r->settingsLabel = options.settingsLabel ? options.settingsLabel : "";
+        r->settingsIcon = options.settingsIcon ? options.settingsIcon : "";
+        r->settingsCategory = options.settingsCategory ? options.settingsCategory : "UI 21";
         r->options = options;
         r->options.name = nullptr;
         r->runtime = std::make_unique<client::ClientRuntime>(client, r->name, options.padPointer,
-                                                                  options.scaleWithResolution);
+                                                                  options.scaleWithResolution, options.settings);
         RegisterWithHost(*r);
         clients.push_back(std::move(r));
         return true;
@@ -145,6 +177,34 @@ namespace b21ui {
     }
 
     bool Available() { return host && host->available() != 0; }
+    bool keys::Register(const char* provider, const char* label, std::function<std::vector<Binding>()> read) {
+        if (!provider || !*provider || !read) return false;
+        std::scoped_lock guard(mutex);
+        if (std::ranges::any_of(keyProviders, [&](const auto& p) { return p->id == provider; })) return false;
+        auto p = std::make_unique<KeyProvider>();
+        p->id = provider; p->label = label ? label : provider; p->read = std::move(read);
+        RegisterKeysWithHost(*p);
+        keyProviders.push_back(std::move(p)); return true;
+    }
+    std::vector<B21UI_SettingsPanel> SettingsPanels() {
+        if (!host || host->size < offsetof(B21UI_HostApi, settingsPanels) + sizeof(host->settingsPanels) ||
+            !host->settingsPanels) return {};
+        std::vector<B21UI_SettingsPanel> panels(host->settingsPanels(nullptr, 0));
+        const auto count = host->settingsPanels(panels.data(), static_cast<std::uint32_t>(panels.size()));
+        panels.resize(std::min<std::size_t>(count, panels.size()));
+        return panels;
+    }
+    bool OpenSettings(B21UI_ClientId id) {
+        if (!host || host->size < offsetof(B21UI_HostApi, openSettings) + sizeof(host->openSettings) ||
+            !host->openSettings || SettingsPanels().empty() || game::GameState::ModalBlockedReason()) return false;
+        if (::GetCurrentThreadId() == mainThread) return host->openSettings(id) != 0;
+        OnMainThread([id] { if (host) host->openSettings(id); });
+        return true;
+    }
+    const char* SettingsCategory(B21UI_ClientId id) {
+        return host && host->size >= offsetof(B21UI_HostApi, settingsCategory) + sizeof(host->settingsCategory) &&
+            host->settingsCategory ? host->settingsCategory(id) : "UI 21";
+    }
     Device ActiveDevice() { return host ? static_cast<Device>(host->activeDevice()) : Device::KeyboardMouse; }
     void SetCursor(float x, float y) { if (host) host->setCursor(x, y); }
 
@@ -157,6 +217,8 @@ namespace b21ui {
             host = game::Rendezvous();
             game::SetGameTaskHost(host);
             for (auto& r : clients) RegisterWithHost(*r);
+            for (auto& p : keyProviders) RegisterKeysWithHost(*p);
+            if (game::IsHost()) game::McmRuntime::RegisterPapyrus();
             break;
         }
         case F4SE::MessagingInterface::kGameDataReady:

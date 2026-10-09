@@ -8,14 +8,14 @@
 namespace b21ui {
     class Client;
 
-    // A B21 window every B21 modern UI can open. Its mod opens it on kOpenWindowMessage, as its hotkey
-    // would, and leaves it open if it already is.
+    // A B21 window every B21 modern UI can open. Mod windows use kOpenWindowMessage; shared settings
+    // route through the elected host.
     struct Window {
         std::string_view id;
         std::string_view label;
         const char* glyph;      // Font Awesome Solid, UTF-8
-        const wchar_t* module;  // loaded DLL that marks the window installed
-        const char* plugin;     // F4SE plugin name the message is addressed to
+        const wchar_t* module;  // null for the shared settings host
+        const char* plugin;     // F4SE plugin name, or null for shared settings
     };
 
     std::span<const Window> Windows();

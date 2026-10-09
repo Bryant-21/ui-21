@@ -1,0 +1,9 @@
+{
+  "modName": "CompanionDemo",
+  "displayName": "Companion Settings",
+  "content": [
+    {"type": "section", "text": "COMPANION BEHAVIOR"},
+    {"type": "switcher", "text": "Essential companions", "id": "bEssential:Main", "valueOptions": {"sourceType": "ModSettingBool"}},
+    {"type": "slider", "text": "Follow distance", "id": "fDistance:Main", "valueOptions": {"sourceType": "ModSettingFloat", "min": 50, "max": 500, "step": 10}}
+  ]
+}

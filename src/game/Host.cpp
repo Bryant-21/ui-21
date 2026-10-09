@@ -9,11 +9,15 @@
 #include "game/Rendezvous.h"
 #include "game/RenderHooks.h"
 #include "game/Tasks.h"
+#include "game/PauseSettings.h"
+#include "game/McmRuntime.h"
+#include "game/KeybindingsRuntime.h"
 #include "b21ui/Tasks.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstring>
 
 namespace b21ui::game {
     namespace {
@@ -31,6 +35,15 @@ namespace b21ui::game {
         }
         void ApiQueueGameTask(void* user, B21UI_TaskCallback run, B21UI_TaskCallback destroy) noexcept {
             QueueLocalGameTask(core::OwnedGameTask(user, run, destroy));
+        }
+        std::uint32_t ApiSettingsPanels(B21UI_SettingsPanel* panels, std::uint32_t capacity) noexcept {
+            return Host::Get().SettingsPanels(panels, capacity);
+        }
+        std::uint32_t ApiOpenSettings(B21UI_ClientId id) noexcept { return Host::Get().OpenSettings(id) ? 1u : 0u; }
+        const char* ApiSettingsCategory(B21UI_ClientId id) noexcept { return Host::Get().SettingsCategory(id); }
+        std::uint32_t ApiRegisterKeybindings(const B21UI_KeybindingProvider* provider) noexcept {
+            try { return provider && KeybindingsRuntime::Register(*provider) ? 1u : 0u; }
+            catch (...) { return 0; }
         }
 
         // A modal shown under a loading screen took the game state mid-load: the world came back
@@ -60,7 +73,8 @@ namespace b21ui::game {
 
     const B21UI_HostApi* HostApiTable() {
         static const B21UI_HostApi table{sizeof(B21UI_HostApi), B21UI_ABI_VERSION, &ApiRegister, &ApiOpen, &ApiClose,
-                                         &ApiIsOpen, &ApiAvailable, &ApiActiveDevice, &ApiSetCursor, &ApiSetPausesGame, &ApiQueueGameTask};
+                                         &ApiIsOpen, &ApiAvailable, &ApiActiveDevice, &ApiSetCursor, &ApiSetPausesGame,
+                                         &ApiQueueGameTask, &ApiSettingsPanels, &ApiOpenSettings, &ApiSettingsCategory, &ApiRegisterKeybindings};
         return &table;
     }
 
@@ -87,7 +101,10 @@ namespace b21ui::game {
     }
 
     void Host::Start() {
+        McmRuntime::Start();
+        KeybindingsRuntime::Start();
         GameState::RegisterMenu();
+        PauseSettings::Install();
         if (auto* ui = RE::UI::GetSingleton()) {
             ui->RegisterSink<RE::MenuOpenCloseEvent>(BlockingMenuWatch::Get());
         }
@@ -104,18 +121,25 @@ namespace b21ui::game {
         if (desc.size < B21UI_CLIENTDESC_MIN_SIZE || !desc.render) return 0;
         std::scoped_lock guard(mutex_);
         Client client;
-        client.desc = desc;
+        std::memcpy(&client.desc, &desc, std::min<std::size_t>(desc.size, sizeof(client.desc)));
         client.desc.size = sizeof(B21UI_ClientDesc);
         client.name = desc.name ? desc.name : "";
         const auto id = focus_.Add(desc.kind == B21UI_KIND_OVERLAY ? core::ClientKind::Overlay : core::ClientKind::Modal,
                                    (desc.flags & B21UI_FLAG_PAUSES_GAME) != 0);
         clients_.push_back(std::move(client));
         clients_.back().desc.name = clients_.back().name.c_str();
+        settings_.Add(id, desc);
         spdlog::info("B21UI: registered client '{}' (id {})", clients_.back().name, id);
         return id;
     }
 
     bool Host::Open(B21UI_ClientId id) {
+        bool settings{};
+        {
+            std::scoped_lock guard(mutex_);
+            settings = settings_.Contains(id);
+        }
+        if (settings) return OpenSettings(id);
         B21UI_ClientDesc notify{};
         {
             std::scoped_lock guard(mutex_);
@@ -133,6 +157,39 @@ namespace b21ui::game {
         }
         ApplyGameState();
         if (notify.focusChanged) notify.focusChanged(notify.user, 1);
+        return true;
+    }
+
+    std::uint32_t Host::SettingsPanels(B21UI_SettingsPanel* panels, std::uint32_t capacity) {
+        std::scoped_lock guard(mutex_);
+        return settings_.Panels(panels, capacity);
+    }
+    const char* Host::SettingsCategory(B21UI_ClientId id) {
+        std::scoped_lock guard(mutex_);
+        return settings_.Category(id);
+    }
+
+    bool Host::OpenSettings(B21UI_ClientId id) {
+        if (GameState::ModalBlockedReason()) return false;
+        B21UI_ClientDesc closed{}, opened{};
+        {
+            std::scoped_lock guard(mutex_);
+            const auto target = settings_.Resolve(id);
+            if (!target) return false;
+            const auto current = focus_.Focused();
+            if (current == target) return true;
+            if (current && !settings_.Contains(current)) return false;
+            if (const auto* client = Find(current)) closed = client->desc;
+            focus_.Close(current);
+            focus_.Open(target);
+            settings_.Select(target);
+            wantsGameState_ = focus_.WantsGameState();
+            opened = Find(target)->desc;
+        }
+        // Change panels without dropping the shared cursor, player-control lock or pause menu.
+        ApplyGameState();
+        if (closed.focusChanged) closed.focusChanged(closed.user, 0);
+        if (opened.focusChanged) opened.focusChanged(opened.user, 1);
         return true;
     }
 

@@ -3,6 +3,7 @@
 #include "b21ui/B21UI.h"
 #include "b21ui/Tasks.h"
 #include "b21ui/Windows.h"
+#include "b21ui/Settings.h"
 
 #include <spdlog/spdlog.h>
 
@@ -26,10 +27,13 @@ namespace b21ui {
     }
 
     std::vector<const Window*> InstalledWindows(std::string_view self) {
-        return InstalledWindows(self, [](const Window& window) { return ::GetModuleHandleW(window.module) != nullptr; });
+        return InstalledWindows(self, [](const Window& window) {
+            return window.id == "ui21Settings" ? !SettingsPanels().empty() : ::GetModuleHandleW(window.module) != nullptr;
+        });
     }
 
     bool OpenWindow(std::string_view id) {
+        if (id == "ui21Settings") return OpenSettings();
         const auto* window = FindInstalled(id);
         if (window) Send(*window);
         return window != nullptr;
@@ -39,7 +43,8 @@ namespace b21ui {
         const auto* window = FindInstalled(id);
         if (!window) return false;
         Close(self);
-        Send(*window);
+        if (id == "ui21Settings") QueueGameTask([] { OpenSettings(); });
+        else Send(*window);
         return true;
     }
 }

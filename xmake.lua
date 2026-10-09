@@ -37,6 +37,7 @@ end
 -- Ship the shared fonts and their licenses into Data/F4SE/Plugins/<plugin>/fonts.
 -- `plugin_name` must be the DLL basename: PluginAssetDir() is derived from it.
 function b21ui_install_assets(plugin_name)
+    add_installfiles(path.join(b21ui_root, "data/Scripts/MCM.pex"), { prefixdir = "data/Scripts" })
     add_installfiles(path.join(b21ui_root, "assets/fonts/*.ttf"), path.join(b21ui_root, "assets/fonts/*.otf"),
         path.join(b21ui_root, "assets/fonts/*.txt"),
         { prefixdir = "F4SE/Plugins/" .. plugin_name .. "/fonts" })
@@ -52,16 +53,16 @@ if os.scriptdir() == os.projectdir() then
     target("ui21_tests")
         set_kind("binary")
         b21ui_dirs()
-        add_files("tests/*.cpp", "src/core/*.cpp", "src/client/InputMap.cpp", "src/client/PadPointer.cpp",
+        add_files("tests/*.cpp", "src/core/*.cpp", "src/client/InputMap.cpp", "src/client/Keycodes.cpp", "src/client/PadPointer.cpp",
             "src/kit/DdsParse.cpp", "src/kit/IconAtlasData.cpp", "src/kit/PathsPure.cpp",
             "src/modern/AppearanceCodec.cpp")
         add_packages("doctest", "imgui", "nlohmann_json")
-        add_syslinks("d3d11", "d3dcompiler")
+        add_syslinks("d3d11", "d3dcompiler", "user32")
 
     target("ui21_preview")
         set_kind("binary")
         set_default(false)
         b21ui_use_preview()
-        add_files("preview/main.cpp", "demo/Fo4Replicas.cpp")
+        add_files("preview/main.cpp", "preview/McmDemo.cpp", "preview/KeybindingsDemo.cpp", "demo/Fo4Replicas.cpp")
         set_rundir("$(projectdir)")
 end

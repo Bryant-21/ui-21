@@ -66,7 +66,7 @@ namespace b21ui::modern::theme {
     };
     inline constexpr float MinBackgroundOpacity = 0.3F, MinTextScale = 0.7F, MaxTextScale = 1.6F;
     inline constexpr float MinTableTextSize = 10.0F, MaxTableTextSize = 22.0F;
-    // Names this module's section and its defaults (e.g. a see-through window); call before drawing.
+    // Names this context's section and its defaults (e.g. a see-through window); call before drawing.
     void SetAppearanceClient(std::string_view client, const Appearance& defaults = {});
     const Appearance& DefaultAppearance();
     const Appearance& CurrentAppearance();
@@ -99,6 +99,8 @@ namespace b21ui::modern::theme {
 namespace b21ui::modern::icon {
     inline constexpr const char* Search = "\xEF\x80\x82";       // f002
     inline constexpr const char* Gear = "\xEF\x80\x93";         // f013
+    inline constexpr const char* Keyboard = "\xEF\x84\x9C";
+    inline constexpr const char* Info = "\xEF\x81\x9A";
     inline constexpr const char* Close = "\xEF\x80\x8D";        // f00d
     inline constexpr const char* Star = "\xEF\x80\x85";         // f005
     inline constexpr const char* Copy = "\xEF\x83\x85";         // f0c5

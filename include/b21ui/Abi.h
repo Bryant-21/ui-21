@@ -16,7 +16,7 @@ typedef void (*B21UI_TaskCallback)(void* user);
 
 enum { B21UI_DEVICE_KEYBOARD_MOUSE = 0, B21UI_DEVICE_GAMEPAD = 1 };
 enum { B21UI_KIND_MODAL = 0, B21UI_KIND_OVERLAY = 1 };
-enum { B21UI_FLAG_PAUSES_GAME = 1u << 0 };
+enum { B21UI_FLAG_PAUSES_GAME = 1u << 0, B21UI_FLAG_SETTINGS = 1u << 1 };
 enum { B21UI_FRAME_DRAW_CURSOR = 1u << 0 };
 
 enum B21UI_EventType {
@@ -73,7 +73,26 @@ typedef struct B21UI_ClientDesc {
     void (*render)(void* user, const B21UI_Frame* frame);
     void (*deviceLost)(void* user);
     void (*focusChanged)(void* user, uint32_t focused);
+    const char* settingsLabel;
+    const char* settingsIcon;
+    const char* settingsCategory;
 } B21UI_ClientDesc;
+
+typedef struct B21UI_SettingsPanel {
+    B21UI_ClientId id;
+    const char* label;
+    uint32_t selected;
+    const char* icon;
+} B21UI_SettingsPanel;
+
+typedef struct B21UI_KeybindingProvider {
+    uint32_t size;
+    const char* id;
+    const char* label;
+    void* user;
+    /* UTF-8 JSON array, copied immediately. Callback and user live for the plugin's lifetime. */
+    const char* (*snapshot)(void* user);
+} B21UI_KeybindingProvider;
 
 typedef struct B21UI_HostApi {
     uint32_t size;
@@ -88,6 +107,11 @@ typedef struct B21UI_HostApi {
     void (*setPausesGame)(B21UI_ClientId id, uint32_t pausesGame);
     /* Takes ownership of user; destroy runs in the caller's module after execution or discard. */
     void (*queueGameTask)(void* user, B21UI_TaskCallback run, B21UI_TaskCallback destroy);
+    /* Returns the total count; writes up to capacity entries. Labels live for the host's lifetime. */
+    uint32_t (*settingsPanels)(B21UI_SettingsPanel* panels, uint32_t capacity);
+    uint32_t (*openSettings)(B21UI_ClientId id);
+    const char* (*settingsCategory)(B21UI_ClientId id);
+    uint32_t (*registerKeybindings)(const B21UI_KeybindingProvider* provider);
 } B21UI_HostApi;
 
 typedef struct B21UI_Rendezvous {

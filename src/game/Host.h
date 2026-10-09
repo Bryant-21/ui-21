@@ -2,6 +2,7 @@
 #include "b21ui/Abi.h"
 #include "core/Focus.h"
 #include "core/InputTranslate.h"
+#include "core/SettingsRegistry.h"
 
 #include <atomic>
 #include <cstdint>
@@ -17,6 +18,9 @@ namespace b21ui::game {
         void Start();
         B21UI_ClientId RegisterClient(const B21UI_ClientDesc& desc);
         bool Open(B21UI_ClientId id);
+        bool OpenSettings(B21UI_ClientId id);
+        std::uint32_t SettingsPanels(B21UI_SettingsPanel* panels, std::uint32_t capacity);
+        const char* SettingsCategory(B21UI_ClientId id);
         void Close(B21UI_ClientId id);
         void SetPausesGame(B21UI_ClientId id, bool pausesGame);
         bool IsOpen(B21UI_ClientId id);
@@ -44,6 +48,7 @@ namespace b21ui::game {
 
         std::mutex mutex_;
         core::FocusArbiter focus_;
+        core::SettingsRegistry settings_;
         core::InputTranslator translator_;
         std::vector<B21UI_Event> pending_;
         std::vector<Client> clients_;

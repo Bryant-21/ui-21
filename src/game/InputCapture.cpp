@@ -3,6 +3,7 @@
 
 #include "game/InputCapture.h"
 #include "game/Host.h"
+#include "game/McmRuntime.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -25,6 +26,7 @@ namespace b21ui::game::InputCapture {
             bool ShouldHandleEvent(const RE::InputEvent* e) override {
                 if (!e) return false;
                 if (Host::Get().WantsGameState()) return true;
+                if (e->eventType == RE::INPUT_EVENT_TYPE::kButton) McmRuntime::OnButton(*e->As<RE::ButtonEvent>());
                 const auto* button = e->eventType == RE::INPUT_EVENT_TYPE::kButton ? e->As<RE::ButtonEvent>() : nullptr;
                 std::scoped_lock guard(heldLock_);
                 return button && held_.contains(Key(*button));

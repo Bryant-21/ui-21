@@ -3,8 +3,10 @@
 #include "b21ui/Kit.h"
 #include "b21ui/Paths.h"
 #include "b21ui/Windows.h"
+#include "b21ui/Settings.h"
 #include "client/ClientRuntime.h"
 #include "core/InputTranslate.h"
+#include "core/SettingsRegistry.h"
 
 #include <Windows.h>
 #include <Xinput.h>
@@ -31,6 +33,7 @@ namespace b21ui::preview {
             return clients;
         }
         std::set<const Client*> closed;
+        core::SettingsRegistry settings;
         std::vector<B21UI_Event> events;
         bool gamepad{};
         bool forceGamepad{};
@@ -341,11 +344,59 @@ namespace b21ui::preview {
 
 namespace b21ui {
     bool Register(Client& c, const ClientOptions& o) {
-        preview::Clients().emplace_back(&c, std::make_unique<client::ClientRuntime>(c, o.name ? o.name : "", o.padPointer, o.scaleWithResolution));
+        if (o.settings && !o.modal) return false;
+        for (const auto& [client, runtime] : preview::Clients())
+            if (client == &c) return true;
+        preview::Clients().emplace_back(&c, std::make_unique<client::ClientRuntime>(c, o.name ? o.name : "", o.padPointer,
+                                                                                o.scaleWithResolution, o.settings));
+        if (o.settings) {
+            B21UI_ClientDesc desc{};
+            desc.size = sizeof(desc);
+            desc.name = o.name;
+            desc.flags = B21UI_FLAG_SETTINGS;
+            desc.settingsLabel = o.settingsLabel;
+            desc.settingsIcon = o.settingsIcon;
+            desc.settingsCategory = o.settingsCategory;
+            preview::settings.Add(static_cast<B21UI_ClientId>(preview::Clients().size()), desc);
+            preview::closed.insert(&c);
+        }
         return true;
     }
-    bool Open(Client& c) { preview::closed.erase(&c); return true; }
-    void Close(Client& c) { preview::closed.insert(&c); }
+    bool Open(Client& c) {
+        for (std::size_t i = 0; i < preview::Clients().size(); ++i)
+            if (preview::Clients()[i].first == &c && preview::settings.Contains(static_cast<B21UI_ClientId>(i + 1)))
+                return OpenSettings(static_cast<B21UI_ClientId>(i + 1));
+        preview::closed.erase(&c);
+        c.OnFocusChanged(true);
+        return true;
+    }
+    void Close(Client& c) {
+        if (!preview::closed.insert(&c).second) return;
+        for (const auto& [client, runtime] : preview::Clients())
+            if (client == &c) runtime->FocusChanged(false);
+    }
+    std::vector<B21UI_SettingsPanel> SettingsPanels() {
+        std::vector<B21UI_SettingsPanel> panels(preview::settings.Panels(nullptr, 0));
+        preview::settings.Panels(panels.data(), static_cast<std::uint32_t>(panels.size()));
+        return panels;
+    }
+    const char* SettingsCategory(B21UI_ClientId id) { return preview::settings.Category(id); }
+    bool OpenSettings(B21UI_ClientId id) {
+        const auto target = preview::settings.Resolve(id);
+        if (!target) return false;
+        for (std::size_t i = 0; i < preview::Clients().size(); ++i) {
+            auto& [client, runtime] = preview::Clients()[i];
+            const auto panel = static_cast<B21UI_ClientId>(i + 1);
+            if (panel != target && preview::settings.Contains(panel) && !preview::closed.contains(client)) {
+                preview::closed.insert(client);
+                runtime->FocusChanged(false);
+            }
+        }
+        const auto& [client, runtime] = preview::Clients()[target - 1];
+        preview::settings.Select(target);
+        if (preview::closed.erase(client)) runtime->FocusChanged(true);
+        return true;
+    }
     bool IsOpen(const Client& c) { return !preview::closed.contains(&c); }
     void SetPausesGame(Client&, bool) {}
     bool Available() { return true; }
@@ -359,13 +410,22 @@ namespace b21ui {
     }
     void OnF4SEMessage(const void*) {}
 
-    // Every window counts as installed so launchers draw; opening one is only logged.
+    // Companion windows are logged stand-ins; settings panels run in this process.
     std::vector<const Window*> InstalledWindows(std::string_view self) {
-        return InstalledWindows(self, [](const Window&) { return true; });
+        return InstalledWindows(self, [](const Window& window) {
+            return window.id != "ui21Settings" || !SettingsPanels().empty();
+        });
     }
     bool OpenWindow(std::string_view id) {
+        if (id == "ui21Settings") return OpenSettings();
         std::printf("B21UI preview: open window %.*s\n", static_cast<int>(id.size()), id.data());
         return true;
     }
-    bool SwitchToWindow(Client&, std::string_view id) { return OpenWindow(id); }
+    bool SwitchToWindow(Client& self, std::string_view id) {
+        if (id == "ui21Settings") {
+            if (SettingsPanels().empty()) return false;
+            Close(self);
+        }
+        return OpenWindow(id);
+    }
 }
