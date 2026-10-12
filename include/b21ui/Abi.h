@@ -94,6 +94,63 @@ typedef struct B21UI_KeybindingProvider {
     const char* (*snapshot)(void* user);
 } B21UI_KeybindingProvider;
 
+/* Performance metrics (framework 14). Ids are "owner.group.name"; the owner is the text before the first dot. */
+typedef uint32_t B21UI_MetricId;
+
+enum B21UI_MetricUnit {
+    B21UI_UNIT_MS = 0, B21UI_UNIT_COUNT = 1, B21UI_UNIT_MB = 2, B21UI_UNIT_PERCENT = 3,
+    B21UI_UNIT_FPS = 4, B21UI_UNIT_RATIO = 5, B21UI_UNIT_TEXT = 6
+};
+enum { B21UI_METRIC_HEADLINE = 1u << 0 };
+enum { B21UI_PERF_OVERLAY = 1u << 0, B21UI_PERF_CAPTURE = 1u << 1, B21UI_PERF_PAGE = 1u << 2 };
+enum { B21UI_PERF_MODE_OFF = 0, B21UI_PERF_MODE_COMPACT = 1, B21UI_PERF_MODE_EXPANDED = 2, B21UI_PERF_MODE_FULL = 3 };
+enum { B21UI_CAPTURE_IDLE = 0, B21UI_CAPTURE_WAITING = 1, B21UI_CAPTURE_RECORDING = 2, B21UI_CAPTURE_WRITING = 3 };
+
+typedef struct B21UI_MetricDesc {
+    uint32_t size;
+    const char* id;
+    const char* label;
+    const char* group;
+    uint32_t unit;
+    uint32_t flags;
+} B21UI_MetricDesc;
+
+/* Strings live until the next perfMetrics call on the same thread. */
+typedef struct B21UI_MetricInfo {
+    uint32_t size;
+    B21UI_MetricId id;
+    const char* key;
+    const char* owner;
+    const char* label;
+    const char* group;
+    uint32_t unit;
+    uint32_t flags;
+    uint32_t pinned;
+    uint32_t hasValue;
+    double current, average, minimum, maximum, p50, p99;
+    const char* text;
+    uint32_t hasBaseline;
+    double baselineAverage;
+} B21UI_MetricInfo;
+
+typedef struct B21UI_PerfSettings {
+    uint32_t size;
+    uint32_t mode;
+    float anchorX, anchorY;
+    float captureSeconds;
+    float captureDelaySeconds;
+} B21UI_PerfSettings;
+
+typedef struct B21UI_CaptureStatus {
+    uint32_t size;
+    uint32_t state;
+    float elapsedSeconds;
+    uint32_t frames;
+    const char* lastCsvPath;  /* UTF-8, empty until a capture finished; lives until the next call */
+    const char* lastJsonPath;
+    const char* baselinePath;
+} B21UI_CaptureStatus;
+
 typedef struct B21UI_HostApi {
     uint32_t size;
     uint32_t abiVersion;
@@ -112,6 +169,27 @@ typedef struct B21UI_HostApi {
     uint32_t (*openSettings)(B21UI_ClientId id);
     const char* (*settingsCategory)(B21UI_ClientId id);
     uint32_t (*registerKeybindings)(const B21UI_KeybindingProvider* provider);
+    /* Framework 14. Registering an existing id returns the same handle. Push is any-thread; values
+       pushed between two Presents belong to the frame that the second Present ends. */
+    B21UI_MetricId (*perfRegisterMetric)(const B21UI_MetricDesc* desc);
+    void (*perfPush)(B21UI_MetricId id, double value);
+    void (*perfPushText)(B21UI_MetricId id, const char* utf8);
+    /* B21UI_PERF_* bits; zero means nobody is looking and providers must do no work. */
+    uint32_t (*perfActive)(void);
+    /* Returns the total count; writes up to capacity entries. */
+    uint32_t (*perfMetrics)(B21UI_MetricInfo* out, uint32_t capacity);
+    /* Oldest first; returns the count written. */
+    uint32_t (*perfHistory)(B21UI_MetricId id, float* out, uint32_t capacity);
+    void (*perfGetSettings)(B21UI_PerfSettings* out);
+    void (*perfSetSettings)(const B21UI_PerfSettings* settings);
+    void (*perfSetPinned)(B21UI_MetricId id, uint32_t pinned);
+    /* A page that is drawn this frame keeps B21UI_PERF_PAGE set for about a second. */
+    void (*perfPageVisible)(void);
+    uint32_t (*perfCaptureStart)(void);
+    void (*perfCaptureStop)(void);
+    void (*perfCaptureStatus)(B21UI_CaptureStatus* out);
+    uint32_t (*perfLoadBaseline)(const char* jsonPathUtf8);
+    void (*perfClearBaseline)(void);
 } B21UI_HostApi;
 
 typedef struct B21UI_Rendezvous {

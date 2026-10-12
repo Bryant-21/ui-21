@@ -25,6 +25,7 @@ namespace b21ui::game {
         const B21UI_HostApi* elected{};
         bool electedSelf{};
         bool done{};
+        std::vector<RendezvousModule> answered;
 
         std::string ModuleName(HMODULE module) {
             char buffer[MAX_PATH]{};
@@ -62,10 +63,14 @@ namespace b21ui::game {
         ::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                              reinterpret_cast<LPCWSTR>(&Rendezvous), &self);
         electedSelf = found[*winner].module == self;
+        for (std::size_t i = 0; i < candidates.size(); ++i)
+            answered.push_back({candidates[i].moduleName, candidates[i].frameworkVersion, i == *winner});
         spdlog::info("B21UI: {} candidate(s); host = {} v{}{}", candidates.size(), candidates[*winner].moduleName,
                      candidates[*winner].frameworkVersion, electedSelf ? " (this module)" : "");
         return elected;
     }
+
+    const std::vector<RendezvousModule>& RendezvousModules() { return answered; }
 
     bool IsHost() {
         Rendezvous();

@@ -5,8 +5,10 @@
 #include "b21ui/Windows.h"
 #include "b21ui/Settings.h"
 #include "client/ClientRuntime.h"
+#include "client/PerfClient.h"
 #include "core/InputTranslate.h"
 #include "core/SettingsRegistry.h"
+#include "perf/PerfHost.h"
 
 #include <Windows.h>
 #include <Xinput.h>
@@ -275,6 +277,15 @@ namespace b21ui::preview {
                                                    D3D11_SDK_VERSION, &sd, &swapChain, &device, nullptr, &context)))
             return 1;
         CreateTarget();
+        // The preview is its own host: b21ui::perf talks to the in-process service.
+        static const B21UI_HostApi perfTable = [] {
+            B21UI_HostApi t{};
+            t.size = sizeof(t);
+            t.abiVersion = B21UI_ABI_VERSION;
+            perf::FillHostApi(t);
+            return t;
+        }();
+        client::SetPerfHostApi(&perfTable);
         if (!hidden) ::ShowWindow(hwnd, screenshot.empty() ? SW_SHOWDEFAULT : SW_SHOWNOACTIVATE);
 
         auto last = std::chrono::steady_clock::now();
@@ -323,6 +334,7 @@ namespace b21ui::preview {
             const float color[4]{0x31 / 255.0F, 0x39 / 255.0F, 0x3B / 255.0F, 1.0F};
             context->OMSetRenderTargets(1, &rtv, nullptr);
             context->ClearRenderTargetView(rtv, color);
+            perf::Host::Get().OnPresent(device, context);
             const B21UI_Frame f{sizeof(B21UI_Frame), B21UI_FRAME_DRAW_CURSOR,
                 static_cast<float>(client.right - client.left), static_cast<float>(client.bottom - client.top), dt,
                 cursor.x, cursor.y, gamepad ? static_cast<std::uint32_t>(B21UI_DEVICE_GAMEPAD) : static_cast<std::uint32_t>(B21UI_DEVICE_KEYBOARD_MOUSE),

@@ -18,9 +18,10 @@ function b21ui_use()
     b21ui_dirs()
     add_files(path.join(b21ui_root, "src/core/*.cpp"), path.join(b21ui_root, "src/client/*.cpp"),
         path.join(b21ui_root, "src/kit/*.cpp"), path.join(b21ui_root, "src/game/*.cpp"),
-        path.join(b21ui_root, "src/modern/*.cpp"), path.join(b21ui_root, "src/fo4/*.cpp"))
+        path.join(b21ui_root, "src/modern/*.cpp"), path.join(b21ui_root, "src/fo4/*.cpp"),
+        path.join(b21ui_root, "src/perf/*.cpp"))
     add_packages("imgui", "nlohmann_json", "stb")
-    add_syslinks("d3d11", "d3dcompiler", "dxgi", "user32", "psapi", "shell32", "ole32")
+    add_syslinks("d3d11", "d3dcompiler", "dxgi", "user32", "psapi", "shell32", "ole32", "version")
 end
 
 -- Call inside a desktop preview binary target (no game code).
@@ -29,9 +30,10 @@ function b21ui_use_preview()
     add_includedirs(b21ui_root)
     add_files(path.join(b21ui_root, "src/core/*.cpp"), path.join(b21ui_root, "src/client/*.cpp"),
         path.join(b21ui_root, "src/kit/*.cpp"), path.join(b21ui_root, "src/modern/*.cpp"),
-        path.join(b21ui_root, "src/fo4/*.cpp"), path.join(b21ui_root, "preview/PreviewHost.cpp"), path.join(b21ui_root, "demo/DemoClient.cpp"))
+        path.join(b21ui_root, "src/fo4/*.cpp"), path.join(b21ui_root, "src/perf/*.cpp"),
+        path.join(b21ui_root, "preview/PreviewHost.cpp"), path.join(b21ui_root, "demo/DemoClient.cpp"))
     add_packages("imgui", "nlohmann_json", "stb")
-    add_syslinks("d3d11", "d3dcompiler", "dxgi", "user32", "xinput", "windowscodecs", "shell32", "ole32")
+    add_syslinks("d3d11", "d3dcompiler", "dxgi", "user32", "xinput", "windowscodecs", "shell32", "ole32", "psapi", "version")
 end
 
 -- Ship the shared fonts and their licenses into Data/F4SE/Plugins/<plugin>/fonts.
@@ -55,7 +57,7 @@ if os.scriptdir() == os.projectdir() then
         b21ui_dirs()
         add_files("tests/*.cpp", "src/core/*.cpp", "src/client/InputMap.cpp", "src/client/Keycodes.cpp", "src/client/PadPointer.cpp",
             "src/kit/DdsParse.cpp", "src/kit/IconAtlasData.cpp", "src/kit/PathsPure.cpp",
-            "src/modern/AppearanceCodec.cpp")
+            "src/modern/AppearanceCodec.cpp", "src/perf/PerfMath.cpp", "src/perf/MetricStore.cpp", "src/perf/CaptureWriter.cpp")
         add_packages("doctest", "imgui", "nlohmann_json")
         add_syslinks("d3d11", "d3dcompiler", "user32")
 

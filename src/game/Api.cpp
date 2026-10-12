@@ -7,6 +7,7 @@
 #include "b21ui/Keybindings.h"
 #include "core/Keybindings.h"
 #include "client/ClientRuntime.h"
+#include "client/PerfClient.h"
 #include "game/GameState.h"
 #include "game/Rendezvous.h"
 #include "game/Tasks.h"
@@ -216,6 +217,7 @@ namespace b21ui {
             std::scoped_lock guard(mutex);
             host = game::Rendezvous();
             game::SetGameTaskHost(host);
+            client::SetPerfHostApi(host);
             for (auto& r : clients) RegisterWithHost(*r);
             for (auto& p : keyProviders) RegisterKeysWithHost(*p);
             if (game::IsHost()) game::McmRuntime::RegisterPapyrus();

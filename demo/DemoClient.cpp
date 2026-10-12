@@ -1,9 +1,11 @@
 #include "demo/DemoClient.h"
 #include "b21ui/Kit.h"
+#include "b21ui/Perf.h"
 
 #include <imgui.h>
 
 #include <array>
+#include <cmath>
 #include <format>
 
 namespace b21ui::demo {
@@ -12,8 +14,30 @@ namespace b21ui::demo {
         while (log_.size() > 30) log_.pop_front();
     }
 
+    namespace {
+        // Stand-in providers: what a mod's own metrics look like on the overlay and the page.
+        void PushDemoMetrics() {
+            namespace perf = b21ui::perf;
+            static const perf::Metric cells("demo.world.cells", "Loaded cells", perf::Unit::Count, {.group = "World", .headline = true});
+            static const perf::Metric refs("demo.world.refs", "References", perf::Unit::Count, {.group = "World"});
+            static const perf::Metric scripts("demo.scripts.ms", "Script time", perf::Unit::Ms, {.group = "Scripts", .headline = true});
+            static const perf::Metric actors("demo.ai.actors", "Active actors", perf::Unit::Count, {.group = "AI"});
+            static const perf::Metric hit("demo.cache.hit", "Cache hit ratio", perf::Unit::Ratio, {.group = "Cache"});
+            static const perf::Metric weather("demo.state.weather", "Weather", perf::Unit::Text, {.group = "State"});
+            if (!perf::Active()) return;
+            const double t = ImGui::GetTime();
+            cells.Push(9 + std::round(2 * std::sin(t * 0.3)));
+            refs.Push(4200 + std::round(300 * std::sin(t * 0.7)));
+            scripts.Push(1.4 + 0.6 * std::sin(t * 2.1) + 0.3 * std::sin(t * 11.0));
+            actors.Push(14 + std::round(4 * std::sin(t * 0.5)));
+            hit.Push(0.93 + 0.04 * std::sin(t));
+            weather.PushText(std::sin(t * 0.2) > 0 ? "CommonwealthClear" : "RadStorm");
+        }
+    }
+
     void DemoClient::Draw(const FrameContext& f) {
         using namespace kit;
+        PushDemoMetrics();
         const ImVec2 size{f.width * 0.45F, f.height * 0.7F};
         if (BeginPanel(title_.c_str(), {f.width * 0.08F, f.height * 0.1F}, size)) {
             Heading(title_.c_str());

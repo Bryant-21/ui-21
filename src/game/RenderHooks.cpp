@@ -4,6 +4,7 @@
 #include "game/RenderHooks.h"
 #include "game/Host.h"
 #include "client/D3D11State.h"
+#include "perf/PerfHost.h"
 
 #include <spdlog/spdlog.h>
 
@@ -68,6 +69,7 @@ namespace b21ui::game::RenderHooks {
             const auto now = std::chrono::steady_clock::now();
             const float dt = std::chrono::duration<float>(now - lastFrame).count();
             lastFrame = now;
+            perf::Host::Get().OnPresent(device, context);
             if (EnsureBackbuffer(chain)) {
                 client::D3D11State saved(context);
                 BindBackbuffer();

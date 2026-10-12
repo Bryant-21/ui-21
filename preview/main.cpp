@@ -5,6 +5,7 @@
 #include "preview/KeybindingsDemo.h"
 #include "b21ui/Settings.h"
 #include "b21ui/modern/Widgets.h"
+#include "perf/PerfHost.h"
 
 #include <string_view>
 
@@ -47,6 +48,19 @@ int main(int argc, char** argv) {
         b21ui::Register(second, {.name = "otherSettings", .settings = true, .settingsLabel = "Another Mod",
             .settingsIcon = b21ui::modern::icon::Terminal});
         b21ui::OpenSettings(mcmPanel);
+    }
+    else if (demoName == "perf" || demoName == "perf-page") {
+        // --demo perf: Full overlay over the kit demo; perf-page: the MOD SETTINGS Performance page.
+        b21ui::Register(demo, {"demo", true, false});
+        auto& perf = b21ui::perf::Host::Get();
+        perf.SetSettingsFile(std::filesystem::absolute("build/preview_perf.ini"));
+        const nlohmann::json self{{"module", "ui21_preview.exe"}, {"frameworkVersion", 14}, {"host", true}};
+        perf.Start({{"mods", nlohmann::json::array({self})}});
+        perf.SetMode(B21UI_PERF_MODE_FULL);
+        if (demoName == "perf-page") {
+            for (const auto& panel : b21ui::SettingsPanels())
+                if (std::string_view(panel.label) == "Performance") b21ui::OpenSettings(panel.id);
+        }
     }
     else if (demoName == "fo4-container") b21ui::Register(container, {"fo4-container", true, false});
     else if (demoName == "fo4-pause") b21ui::Register(pause, {"fo4-pause", true, false});

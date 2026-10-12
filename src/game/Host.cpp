@@ -12,6 +12,8 @@
 #include "game/PauseSettings.h"
 #include "game/McmRuntime.h"
 #include "game/KeybindingsRuntime.h"
+#include "game/PerfRuntime.h"
+#include "perf/PerfHost.h"
 #include "b21ui/Tasks.h"
 
 #include <spdlog/spdlog.h>
@@ -72,9 +74,13 @@ namespace b21ui::game {
     }
 
     const B21UI_HostApi* HostApiTable() {
-        static const B21UI_HostApi table{sizeof(B21UI_HostApi), B21UI_ABI_VERSION, &ApiRegister, &ApiOpen, &ApiClose,
-                                         &ApiIsOpen, &ApiAvailable, &ApiActiveDevice, &ApiSetCursor, &ApiSetPausesGame,
-                                         &ApiQueueGameTask, &ApiSettingsPanels, &ApiOpenSettings, &ApiSettingsCategory, &ApiRegisterKeybindings};
+        static const B21UI_HostApi table = [] {
+            B21UI_HostApi t{sizeof(B21UI_HostApi), B21UI_ABI_VERSION, &ApiRegister, &ApiOpen, &ApiClose,
+                            &ApiIsOpen, &ApiAvailable, &ApiActiveDevice, &ApiSetCursor, &ApiSetPausesGame,
+                            &ApiQueueGameTask, &ApiSettingsPanels, &ApiOpenSettings, &ApiSettingsCategory, &ApiRegisterKeybindings};
+            perf::FillHostApi(t);
+            return t;
+        }();
         return &table;
     }
 
@@ -103,6 +109,7 @@ namespace b21ui::game {
     void Host::Start() {
         McmRuntime::Start();
         KeybindingsRuntime::Start();
+        PerfRuntime::Start();
         GameState::RegisterMenu();
         PauseSettings::Install();
         if (auto* ui = RE::UI::GetSingleton()) {
@@ -339,6 +346,7 @@ namespace b21ui::game {
     }
 
     void Host::DeviceLost() {
+        perf::Host::Get().DeviceLost();
         std::vector<B21UI_ClientDesc> all;
         {
             std::scoped_lock guard(mutex_);

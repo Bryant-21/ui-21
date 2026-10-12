@@ -254,6 +254,84 @@ Desktop fixtures (sample bindings, no game access):
 xmake run ui21_preview --demo keybindings --hidden --size 1280x720 --screenshot build/keybindings.png --frames 30
 ```
 
+## Performance overlay, metrics and capture (framework 14)
+
+The elected host measures every frame itself and owns one overlay, one page and one capture for
+all B21UI mods. Mods add their own metrics and do that work only while someone is looking.
+
+**Core metrics** (owner `b21ui`, all headline): `b21ui.frame.ms` (Present to Present),
+`b21ui.frame.fps`, `b21ui.gpu.ms` (one D3D11 timestamp pair per frame, read back a few frames
+later without stalling), `b21ui.cpu.percent` (process, all cores = 100), `b21ui.mem.ram_mb`
+(working set) and `b21ui.mem.vram_mb` (local `QueryVideoMemoryInfo` usage). CPU, RAM and VRAM
+are sampled at most once a second and only while `Active()`. Mode Off with no capture and no
+page open does no work at all; Compact times the frame and the GPU only.
+
+**Overlay modes** (Shift+F11 cycles, also on the page): Off, Compact (`FPS · frame ms · GPU ms`),
+Expanded (frame-time graph, 1% / 0.1% lows, GPU, CPU, RAM, VRAM, then pinned metrics under their
+owner), Full (Expanded plus every metric by owner, `current (average)`; text metrics as text).
+It is input-transparent, scales with height / 1080, follows the HUD colour and is placed by a
+normalized anchor that is also its pivot (default top-right). Lows are `1000 / p99` and
+`1000 / p99.9` of the frame-time history.
+
+**Page**: MOD SETTINGS → B21UI → Performance (Live: stat cards, mode, anchor, graphs; Metrics:
+search, owner and group, current / average / P99 / baseline delta, pin; Capture: duration,
+delay, start / stop, past captures, load as baseline, open folder). Any mod can draw the same
+page inside its own window with `b21ui::perf::DrawPage(extraTabs)`; extra tabs are drawn in that
+mod's ImGui context only. ImGui calls never cross DLLs, so a mod's overlay content is limited to
+its metrics (use `Unit::Text` for words).
+
+```cpp
+#include <b21ui/Perf.h>
+namespace perf = b21ui::perf;
+static const perf::Metric cells("b21_mymod.world.cells", "Loaded cells", perf::Unit::Count,
+                                {.group = "World", .headline = true});
+static const perf::Metric state("b21_mymod.state.phase", "Phase", perf::Unit::Text);
+
+void OnFrame() {
+    if (!perf::Active()) return;          // cheap; nobody is looking -> no work
+    cells.Push(CountLoadedCells());       // any thread; last push before a Present wins
+    state.PushText("streaming");
+}
+```
+
+Ids are `owner.group.name` (the owner is the text before the first dot; printable ASCII without
+spaces, commas or quotes). Registering an id again returns the same metric. Metrics constructed
+before the rendezvous are queued and registered at `kPostLoad`. Headline metrics are pinned to the
+Expanded overlay until the user unpins them. History is the last 1024 pushes per metric; the
+page's average / P50 / P99 cover that window. `Active()`, `Capturing()`, `CurrentMode()`,
+`SetMode()`, `StartCapture()` and `StopCapture()` go through the host. Against a host older than
+14 everything is a no-op and `DrawPage` shows one line saying so.
+
+**Hotkeys**: Shift+F11 cycles the overlay, Shift+F12 starts or stops a capture (not while a
+B21UI window has focus). Both are published to the keybinding catalog as source **B21UI**.
+
+**Settings** live in `Data/F4SE/Plugins/B21UI.ini`, `[Performance]`: `iMode` (0 Off, 1 Compact,
+2 Expanded, 3 Full), `fAnchorX`, `fAnchorY` (0..1; default 1, 0), `fCaptureSeconds` (default 30,
+0 = until stopped), `fCaptureDelay` (default 0), `sPinned` / `sUnpinned` (comma lists of ids the
+user pinned or unpinned against the headline default). Changes are saved a second after the
+last edit.
+
+**Captures** go to `Documents\My Games\Fallout4\F4SE\B21UI\Captures\` and are written on a
+background thread when the capture stops:
+
+- `B21UI_Capture_<yyyyMMdd_HHmmss>.csv`: one row per frame, `frame,time_s`, then one column per
+  metric id; numbers carry the last value forward, text is quoted.
+- `.json` summary: `timestamp`, `durationSeconds`, `frames`, `framework`, `game` (executable
+  and file version), `mods` (every rendezvous module, its framework version, which is host),
+  `settings`, `baseline` (if one was loaded), `fps` (`average`, `low1`, `low01`) and `metrics`
+  (`id`, `label`, `group`, `owner`, `unit`, `samples`, `avg`, `min`, `max`, `p50`, `p99`;
+  `low1Fps` / `low01Fps` on `b21ui.frame.ms`; `last` for text). Only frames that pushed a
+  metric count as its samples.
+
+Loading a summary as the baseline compares every metric's average with that capture's.
+
+Desktop preview (fake providers on the demo window; the preview is its own host):
+
+```
+xmake run ui21_preview --demo perf --hidden --size 1600x900 --screenshot build/perf.png --frames 150
+xmake run ui21_preview --demo perf-page --hidden --size 1600x900 --screenshot build/perf_page.png --frames 150
+```
+
 ## Supported runtimes
 
 Fallout 4 on Windows x64 with F4SE, on the runtimes your CommonLibF4 build targets. The
@@ -270,7 +348,8 @@ xmake build ui21_preview && xmake run ui21_preview -- --demo fo4-container --scr
 ```
 
 The tests cover host election, input translation, focus, the deferred task queue, D3D11 state
-save/restore (on WARP), DDS parsing and the gamepad keyboard and pointer. `python
+save/restore (on WARP), DDS parsing, the gamepad keyboard and pointer, and the performance metric
+store, lows, pin codec and capture writers. `python
 tools/leak_check.py` checks the tree and commit messages for local paths, private addresses,
 emails and secrets before publishing.
 
@@ -278,6 +357,10 @@ emails and secrets before publishing.
 
 Framework version, as in `B21UI_FRAMEWORK_VERSION`:
 
+- **14**: shared performance overlay, metrics and capture (`b21ui/Perf.h`). The host samples frame,
+  GPU, CPU, RAM and VRAM, draws the Off / Compact / Expanded / Full overlay (Shift+F11), adds the
+  Performance settings page and writes CSV + JSON captures (Shift+F12) with baseline comparison.
+  `B21UI_HostApi` gains the `perf*` calls at its end; older hosts make the API a no-op.
 - **12**: `modern::w::SliderFloat` / `SliderInt` show the minimum and maximum inside the frame's edges
   with the value centred (in the tooltip when the frame is too narrow); `w::SliderLimits` adds them to a
   slider drawn elsewhere. MCM sliders and the Appearance popover use them. No ABI change.
