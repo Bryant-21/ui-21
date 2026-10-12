@@ -225,9 +225,10 @@ TEST_CASE("capture file names sort by time") {
     CHECK(CsvQuote("a\nb") == "\"a b\"");
 }
 
-TEST_CASE("framework 14 appends the perf calls at the end of the host table") {
+TEST_CASE("framework 14 and 15 append the perf calls at the end of the host table") {
     CHECK(offsetof(B21UI_HostApi, perfRegisterMetric) == offsetof(B21UI_HostApi, registerKeybindings) + sizeof(void*));
-    CHECK(sizeof(B21UI_HostApi) == offsetof(B21UI_HostApi, perfClearBaseline) + sizeof(void*));
+    CHECK(offsetof(B21UI_HostApi, perfHistoryTimed) == offsetof(B21UI_HostApi, perfClearBaseline) + sizeof(void*));
+    CHECK(sizeof(B21UI_HostApi) == offsetof(B21UI_HostApi, perfNow) + sizeof(void*));
 }
 
 TEST_CASE("a capture's first row carries every text metric") {
@@ -243,4 +244,73 @@ TEST_CASE("a capture's first row carries every text metric") {
     REQUIRE(row.texts.size() == 1);
     CHECK(row.texts[0].first == 0);
     CHECK(row.texts[0].second == "ready");
+}
+
+TEST_CASE("perf overlay: the full list flows into as many columns as the width holds") {
+    CHECK(OverlayColumns(100.0F, 300.0F) == 1);
+    CHECK(OverlayColumns(0.0F, 300.0F) == 1);
+    CHECK(OverlayColumns(900.0F, 300.0F) == 3);
+    CHECK(OverlayColumns(899.0F, 300.0F) == 2);
+    CHECK(OverlayColumns(900.0F, 0.0F) == 1);
+
+    CHECK(RowsPerColumn(0, 3) == 0);
+    CHECK(RowsPerColumn(10, 1) == 10);
+    CHECK(RowsPerColumn(10, 3) == 4);
+    CHECK(RowsPerColumn(9, 3) == 3);
+    CHECK(RowsPerColumn(2, 4) == 1);
+}
+
+TEST_CASE("perf page: a list child keeps a bounded height in a parent that grows to fit") {
+    // An auto-sizing parent reports more room every frame; the list must not follow it.
+    CHECK(BoundedListHeight(5000.0F, 1080.0F, 200.0F) == doctest::Approx(1080.0F * kListViewportShare));
+    CHECK(BoundedListHeight(400.0F, 1080.0F, 200.0F) == doctest::Approx(400.0F));
+    CHECK(BoundedListHeight(50.0F, 1080.0F, 200.0F) == doctest::Approx(200.0F));
+    CHECK(BoundedListHeight(5000.0F, 100.0F, 200.0F) == doctest::Approx(200.0F));
+}
+
+TEST_CASE("perf history: each sample keeps the time of the frame that closed it") {
+    MetricStore store;
+    const auto id = store.Register("t.ms", "ms", "", B21UI_UNIT_MS, 0);
+    store.Push(id, 10.0);
+    store.CloseFrame(nullptr, false, 1.0);
+    store.CloseFrame(nullptr, false, 1.5);  // no push: no sample
+    store.Push(id, 20.0);
+    store.CloseFrame(nullptr, false, 2.0);
+    std::vector<float> values(8);
+    std::vector<double> times(8);
+    const auto n = store.HistoryTimed(id, values.data(), times.data(), 8);
+    REQUIRE(n == 2);
+    CHECK(values[0] == 10.0F);
+    CHECK(times[0] == 1.0);
+    CHECK(values[1] == 20.0F);
+    CHECK(times[1] == 2.0);
+}
+
+TEST_CASE("perf graph: samples are averaged into fixed time bins over a fixed window") {
+    // Two samples in the last bin, one in the first; the middle bin is empty and holds the value before it.
+    const std::vector<float> values{4.0F, 10.0F, 20.0F};
+    const std::vector<double> times{0.05, 0.95, 0.99};
+    const auto bins = BinByTime(values, times, 1.0, 1.0, 3);
+    REQUIRE(bins.size() == 3);
+    CHECK(bins[0] == doctest::Approx(4.0F));
+    CHECK(bins[1] == doctest::Approx(4.0F));
+    CHECK(bins[2] == doctest::Approx(15.0F));
+
+    // Samples older than the window are dropped; empty leading bins take the first value seen.
+    const auto late = BinByTime(values, times, 1.0, 0.5, 2);
+    REQUIRE(late.size() == 2);
+    CHECK(late[0] == doctest::Approx(15.0F));
+    CHECK(late[1] == doctest::Approx(15.0F));
+
+    CHECK(BinByTime({}, {}, 1.0, 1.0, 4).empty());
+}
+
+TEST_CASE("perf graph: the top of the scale moves in fixed steps, not with every spike") {
+    CHECK(GraphTop(5.0F, 16.7F) == doctest::Approx(16.7F));
+    CHECK(GraphTop(16.0F, 16.7F) == doctest::Approx(16.7F));
+    CHECK(GraphTop(17.0F, 16.7F) == doctest::Approx(33.4F));
+    CHECK(GraphTop(34.0F, 16.7F) == doctest::Approx(50.1F));
+    CHECK(GraphTop(51.0F, 16.7F) == doctest::Approx(66.8F));
+    CHECK(GraphTop(0.0F, 0.0F) == doctest::Approx(1.0F));
+    CHECK(GraphTop(250.0F, 100.0F) == doctest::Approx(300.0F));
 }

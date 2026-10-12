@@ -116,4 +116,56 @@ namespace b21ui::perf {
         default: return std::format("{:.3g}", value);
         }
     }
+
+    std::uint32_t OverlayColumns(float available, float columnWidth) {
+        if (!(columnWidth > 0.0F) || !(available > columnWidth)) return 1;
+        return static_cast<std::uint32_t>(available / columnWidth);
+    }
+
+    std::size_t RowsPerColumn(std::size_t lines, std::uint32_t columns) {
+        const std::size_t n = std::max<std::uint32_t>(columns, 1);
+        return (lines + n - 1) / n;
+    }
+
+    float BoundedListHeight(float available, float viewportHeight, float minHeight) {
+        const float cap = std::max(minHeight, viewportHeight * kListViewportShare);
+        return std::clamp(available, minHeight, cap);
+    }
+
+    std::vector<float> BinByTime(std::span<const float> values, std::span<const double> times, double end, double window,
+                                 std::size_t bins) {
+        const auto n = std::min(values.size(), times.size());
+        if (bins == 0 || !(window > 0.0)) return {};
+        const double start = end - window;
+        const double width = window / static_cast<double>(bins);
+        std::vector<double> sums(bins, 0.0);
+        std::vector<std::uint32_t> counts(bins, 0);
+        bool any = false;
+        for (std::size_t i = 0; i < n; ++i) {
+            if (!(times[i] > start) || times[i] > end || !std::isfinite(values[i])) continue;
+            const auto bin = std::min(bins - 1, static_cast<std::size_t>((times[i] - start) / width));
+            sums[bin] += values[i];
+            ++counts[bin];
+            any = true;
+        }
+        if (!any) return {};
+        std::vector<float> out(bins);
+        float held = 0.0F;
+        for (std::size_t i = 0; i < bins; ++i)
+            if (counts[i]) {
+                held = static_cast<float>(sums[i] / counts[i]);
+                break;
+            }
+        for (std::size_t i = 0; i < bins; ++i) {
+            if (counts[i]) held = static_cast<float>(sums[i] / counts[i]);
+            out[i] = held;
+        }
+        return out;
+    }
+
+    float GraphTop(float maximum, float step) {
+        if (!(step > 0.0F)) step = 1.0F;
+        const float steps = std::isfinite(maximum) ? std::ceil(maximum / step) : 1.0F;
+        return step * std::max(1.0F, steps);
+    }
 }

@@ -139,6 +139,8 @@ typedef struct B21UI_PerfSettings {
     float anchorX, anchorY;
     float captureSeconds;
     float captureDelaySeconds;
+    float overlayWidth;   /* Full overlay width as a share of the screen width */
+    float overlayOpacity; /* overlay background alpha */
 } B21UI_PerfSettings;
 
 typedef struct B21UI_CaptureStatus {
@@ -190,6 +192,10 @@ typedef struct B21UI_HostApi {
     void (*perfCaptureStatus)(B21UI_CaptureStatus* out);
     uint32_t (*perfLoadBaseline)(const char* jsonPathUtf8);
     void (*perfClearBaseline)(void);
+    /* Framework 15. As perfHistory, with each sample's frame time on the host clock (seconds). */
+    uint32_t (*perfHistoryTimed)(B21UI_MetricId id, float* values, double* seconds, uint32_t capacity);
+    /* The host clock now, in seconds. */
+    double (*perfNow)(void);
 } B21UI_HostApi;
 
 typedef struct B21UI_Rendezvous {

@@ -124,6 +124,8 @@ namespace b21ui::perf {
         settings_.anchorY = ReadFloat(file, L"fAnchorY", 0.0F, 0.0F, 1.0F);
         settings_.captureSeconds = ReadFloat(file, L"fCaptureSeconds", 30.0F, 0.0F, 3600.0F);
         settings_.captureDelaySeconds = ReadFloat(file, L"fCaptureDelay", 0.0F, 0.0F, 600.0F);
+        settings_.overlayWidth = ReadFloat(file, L"fOverlayWidth", 0.5F, 0.15F, 1.0F);
+        settings_.overlayOpacity = ReadFloat(file, L"fOverlayOpacity", 0.8F, 0.0F, 1.0F);
         pins_.Load(Narrow(ReadString(file, L"sPinned")), Narrow(ReadString(file, L"sUnpinned")));
         mode_ = settings_.mode;
     }
@@ -145,6 +147,8 @@ namespace b21ui::perf {
         ::WritePrivateProfileStringW(kSection, L"fAnchorY", std::format(L"{:.3f}", s.anchorY).c_str(), file);
         ::WritePrivateProfileStringW(kSection, L"fCaptureSeconds", std::format(L"{:.1f}", s.captureSeconds).c_str(), file);
         ::WritePrivateProfileStringW(kSection, L"fCaptureDelay", std::format(L"{:.1f}", s.captureDelaySeconds).c_str(), file);
+        ::WritePrivateProfileStringW(kSection, L"fOverlayWidth", std::format(L"{:.3f}", s.overlayWidth).c_str(), file);
+        ::WritePrivateProfileStringW(kSection, L"fOverlayOpacity", std::format(L"{:.3f}", s.overlayOpacity).c_str(), file);
         ::WritePrivateProfileStringW(kSection, L"sPinned", Wide(pinned).c_str(), file);
         ::WritePrivateProfileStringW(kSection, L"sUnpinned", Wide(unpinned).c_str(), file);
     }
@@ -180,6 +184,8 @@ namespace b21ui::perf {
             settings_.captureSeconds = std::isfinite(in.captureSeconds) ? std::clamp(in.captureSeconds, 0.0F, 3600.0F) : settings_.captureSeconds;
             settings_.captureDelaySeconds = std::isfinite(in.captureDelaySeconds) ? std::clamp(in.captureDelaySeconds, 0.0F, 600.0F)
                                                                                   : settings_.captureDelaySeconds;
+            settings_.overlayWidth = std::isfinite(in.overlayWidth) ? std::clamp(in.overlayWidth, 0.15F, 1.0F) : settings_.overlayWidth;
+            settings_.overlayOpacity = std::isfinite(in.overlayOpacity) ? std::clamp(in.overlayOpacity, 0.0F, 1.0F) : settings_.overlayOpacity;
             mode_ = settings_.mode;
             settingsDirty_ = true;
             settingsChangedAt_ = Now();
@@ -317,7 +323,7 @@ namespace b21ui::perf {
                 }
             }
             const bool recording = state == B21UI_CAPTURE_RECORDING;
-            store_.CloseFrame(recording ? &row_ : nullptr, capture_.rows.empty());
+            store_.CloseFrame(recording ? &row_ : nullptr, capture_.rows.empty(), now);
             if (recording) {
                 const double elapsed = now - captureStartedAt_;
                 capture_.times.push_back(elapsed);
@@ -439,6 +445,10 @@ namespace b21ui::perf {
             } catch (...) {}
             return count;
         }
+        std::uint32_t ApiHistoryTimed(B21UI_MetricId id, float* values, double* seconds, std::uint32_t capacity) noexcept {
+            return Host::Get().Store().HistoryTimed(id, values, seconds, capacity);
+        }
+        double ApiNow() noexcept { return Host::Get().Now(); }
         std::uint32_t ApiHistory(B21UI_MetricId id, float* out, std::uint32_t capacity) noexcept {
             return Host::Get().Store().History(id, out, capacity);
         }
@@ -490,5 +500,7 @@ namespace b21ui::perf {
         t.perfCaptureStatus = &ApiCaptureStatus;
         t.perfLoadBaseline = &ApiLoadBaseline;
         t.perfClearBaseline = &ApiClearBaseline;
+        t.perfHistoryTimed = &ApiHistoryTimed;
+        t.perfNow = &ApiNow;
     }
 }

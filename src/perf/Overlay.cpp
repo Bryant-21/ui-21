@@ -45,8 +45,9 @@ namespace b21ui::perf {
             float labelWidth = 0.0F;
             for (const auto& line : lines)
                 if (!line.header) labelWidth = std::max(labelWidth, ImGui::CalcTextSize(line.label.c_str()).x);
-            // SameLine's offset is measured from the window edge, not from the content start.
-            labelWidth += theme::Px(16) + ImGui::GetCursorPosX();
+            // Measured from where the lines start, so a column of the full list lines up too.
+            const float startX = ImGui::GetCursorPosX();
+            labelWidth += theme::Px(16);
             for (const auto& line : lines) {
                 if (line.header) {
                     ImGui::Dummy({0, theme::Px(2)});
@@ -59,8 +60,34 @@ namespace b21ui::perf {
                 ImGui::PushStyleColor(ImGuiCol_Text, theme::Muted);
                 ImGui::TextUnformatted(line.label.c_str());
                 ImGui::PopStyleColor();
-                ImGui::SameLine(labelWidth);
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(startX + labelWidth);
                 w::Mono(line.value);
+            }
+        }
+
+        // The full list in as many columns as the overlay width holds, each column a group.
+        void DrawLineColumns(const std::vector<Line>& lines, ImU32 hud) {
+            float labelWidth = 0.0F, valueWidth = 0.0F;
+            for (const auto& line : lines) {
+                labelWidth = std::max(labelWidth, ImGui::CalcTextSize(line.label.c_str()).x);
+                if (!line.header) valueWidth = std::max(valueWidth, ImGui::CalcTextSize(line.value.c_str()).x);
+            }
+            const float gap = theme::Px(24);
+            const float columnWidth = labelWidth + theme::Px(16) + valueWidth + gap;
+            const auto columns = OverlayColumns(ImGui::GetContentRegionAvail().x + gap, columnWidth);
+            const auto rows = RowsPerColumn(lines.size(), columns);
+            if (columns <= 1 || rows == 0) {
+                DrawLines(lines, hud);
+                return;
+            }
+            for (std::size_t begin = 0; begin < lines.size(); begin += rows) {
+                if (begin != 0) ImGui::SameLine(0, gap);
+                ImGui::BeginGroup();
+                DrawLines({lines.begin() + static_cast<std::ptrdiff_t>(begin),
+                           lines.begin() + static_cast<std::ptrdiff_t>(std::min(lines.size(), begin + rows))},
+                          hud);
+                ImGui::EndGroup();
             }
         }
 
@@ -84,7 +111,11 @@ namespace b21ui::perf {
                 ImGui::SetNextWindowPos({margin + (frame.width - 2 * margin) * settings.anchorX,
                                          margin + (frame.height - 2 * margin) * settings.anchorY},
                                         ImGuiCond_Always, {settings.anchorX, settings.anchorY});
-                ImGui::SetNextWindowBgAlpha(0.80F);
+                ImGui::SetNextWindowBgAlpha(settings.overlayOpacity);
+                if (mode >= B21UI_PERF_MODE_FULL) {
+                    const float width = (frame.width - 2 * margin) * settings.overlayWidth;
+                    ImGui::SetNextWindowSizeConstraints({width, 0}, {width, frame.height - 2 * margin});
+                }
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {theme::Px(12), theme::Px(10)});
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {theme::Px(8), theme::Px(3)});
                 constexpr auto flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize |
@@ -129,13 +160,18 @@ namespace b21ui::perf {
             void DrawExpanded(Host& host, std::uint32_t mode, ImU32 hud) {
                 auto& store = host.Store();
                 const auto& core = host.CoreIds();
-                if (!history_.empty()) {
-                    const auto shown = std::span<const float>(history_).last(std::min<std::size_t>(history_.size(), 240));
-                    const float top = std::max(33.4F, static_cast<float>(Percentile(shown, 0.99)) * 1.25F);
+                timedValues_.resize(MetricStore::kHistory);
+                timedTimes_.resize(MetricStore::kHistory);
+                const auto timed = store.HistoryTimed(core.frameMs, timedValues_.data(), timedTimes_.data(), MetricStore::kHistory);
+                const auto series = BinByTime(std::span<const float>(timedValues_).first(timed),
+                                              std::span<const double>(timedTimes_).first(timed), host.Now(), kGraphWindowSeconds,
+                                              kGraphBins / 2);
+                if (!series.empty()) {
+                    const float top = GraphTop(*std::ranges::max_element(series), 16.7F);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, hud);
                     ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 90));
-                    ImGui::PlotLines("##frames", shown.data(), static_cast<int>(shown.size()), 0, nullptr, 0.0F, top,
-                                     {theme::Px(260), theme::Px(56)});
+                    ImGui::PlotLines("##frames", series.data(), static_cast<int>(series.size()), 0, nullptr, 0.0F,
+                                     std::max(top, 33.4F), {theme::Px(260), theme::Px(56)});
                     ImGui::PopStyleColor(2);
                 }
                 std::vector<Line> lines;
@@ -187,10 +223,12 @@ namespace b21ui::perf {
                 }
                 ImGui::Dummy({0, theme::Px(2)});
                 ImGui::Separator();
-                DrawLines(lines, hud);
+                DrawLineColumns(lines, hud);
             }
 
             std::vector<float> history_;
+            std::vector<float> timedValues_;
+            std::vector<double> timedTimes_;
         };
 
         class PageView final : public Client {

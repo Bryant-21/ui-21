@@ -17,6 +17,7 @@ namespace b21ui::perf {
         bool hasValue{};
         std::string text;
         std::array<float, kHistory> ring{};
+        std::array<double, kHistory> times{};
         std::uint32_t head{}, size{};
     };
 
@@ -70,7 +71,7 @@ namespace b21ui::perf {
         entry->hasPendingText = true;
     }
 
-    void MetricStore::CloseFrame(FrameRow* row, bool allTexts) {
+    void MetricStore::CloseFrame(FrameRow* row, bool allTexts, double now) {
         const auto count = Count();
         if (row) {
             row->values.assign(count, std::numeric_limits<float>::quiet_NaN());
@@ -84,6 +85,7 @@ namespace b21ui::perf {
                 e.current = e.pending;
                 e.hasValue = true;
                 e.ring[e.head] = static_cast<float>(e.pending);
+                e.times[e.head] = now;
                 e.head = (e.head + 1) % kHistory;
                 e.size = std::min(e.size + 1, kHistory);
                 if (row) row->values[i] = static_cast<float>(e.pending);
@@ -105,6 +107,19 @@ namespace b21ui::perf {
         const auto n = std::min(capacity, entry->size);
         const auto start = (entry->head + kHistory - n) % kHistory;
         for (std::uint32_t i = 0; i < n; ++i) out[i] = entry->ring[(start + i) % kHistory];
+        return n;
+    }
+
+    std::uint32_t MetricStore::HistoryTimed(std::uint32_t handle, float* values, double* times, std::uint32_t capacity) const {
+        const auto* entry = At(handle);
+        if (!entry || !values || !times) return 0;
+        std::scoped_lock guard(entry->lock);
+        const auto n = std::min(capacity, entry->size);
+        const auto start = (entry->head + kHistory - n) % kHistory;
+        for (std::uint32_t i = 0; i < n; ++i) {
+            values[i] = entry->ring[(start + i) % kHistory];
+            times[i] = entry->times[(start + i) % kHistory];
+        }
         return n;
     }
 

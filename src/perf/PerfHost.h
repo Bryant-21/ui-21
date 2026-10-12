@@ -48,6 +48,7 @@ namespace b21ui::perf {
         void SetMode(std::uint32_t mode);
         void CycleMode();
         bool IsPinned(std::uint32_t handle) const;
+        double Now() const;
         void SetPinned(std::uint32_t handle, bool pinned);
         void PageVisible();
 
@@ -70,7 +71,6 @@ namespace b21ui::perf {
         void SaveSettings();
         void ApplyOverlay();
         void FinishCapture();
-        double Now() const;
 
         MetricStore store_;
         Core core_;
@@ -83,7 +83,7 @@ namespace b21ui::perf {
 
         mutable std::mutex mutex_;  // settings, pins, baseline, capture paths
         std::filesystem::path settingsFile_;
-        B21UI_PerfSettings settings_{sizeof(B21UI_PerfSettings), B21UI_PERF_MODE_OFF, 1.0F, 0.0F, 30.0F, 0.0F};
+        B21UI_PerfSettings settings_{sizeof(B21UI_PerfSettings), B21UI_PERF_MODE_OFF, 1.0F, 0.0F, 30.0F, 0.0F, 0.5F, 0.8F};
         PinOverrides pins_;
         std::atomic<std::uint32_t> mode_{B21UI_PERF_MODE_OFF};
         bool settingsDirty_{};

@@ -51,6 +51,28 @@ namespace b21ui::perf {
         std::set<std::string> pinned_, unpinned_;
     };
 
+    // The full overlay's metric columns: as many as the overlay width holds, at least one.
+    std::uint32_t OverlayColumns(float available, float columnWidth);
+    std::size_t RowsPerColumn(std::size_t lines, std::uint32_t columns);
+
+    // A scrolling list's height. Inside a parent that grows to fit its content the room
+    // left reported to a fill-the-rest child grows with it every frame, so the list is
+    // held to a share of the screen.
+    inline constexpr float kListViewportShare = 0.6F;
+    float BoundedListHeight(float available, float viewportHeight, float minHeight);
+
+    // Realtime graphs: the samples in (end - window, end] averaged into `bins` equal time slots, so
+    // the trace scrolls at one speed whatever the frame rate and single-frame jitter is blended.
+    // An empty slot holds the value before it; empty leading slots take the first value seen.
+    // Empty when no sample is in the window.
+    std::vector<float> BinByTime(std::span<const float> values, std::span<const double> times, double end, double window,
+                                 std::size_t bins);
+    inline constexpr double kGraphWindowSeconds = 10.0;
+    inline constexpr std::size_t kGraphBins = 600;
+    // The graph's top: the smallest whole multiple of `step` (1 when step is not positive) that
+    // holds `maximum`, so the scale only moves when the window's peak crosses a step.
+    float GraphTop(float maximum, float step);
+
     const char* UnitName(std::uint32_t unit);
     // "12.34 ms", "61.2 FPS", "512 MB"...; text metrics are shown as their text instead.
     std::string FormatValue(double value, std::uint32_t unit);

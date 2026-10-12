@@ -42,7 +42,8 @@ namespace b21ui::perf {
         void PushText(std::uint32_t handle, std::string_view text);
         // Moves this frame's pushes into each metric's history; fills `row` when given. `allTexts` puts
         // every text metric's value in the row, changed or not (a capture's first row).
-        void CloseFrame(FrameRow* row, bool allTexts = false);
+        // `now` is the host clock in seconds; each sample this frame records it.
+        void CloseFrame(FrameRow* row, bool allTexts = false, double now = 0.0);
 
         std::uint32_t Count() const { return count_.load(std::memory_order_acquire); }
         const MetricMeta* Meta(std::uint32_t handle) const;
@@ -57,6 +58,8 @@ namespace b21ui::perf {
         // Oldest first; the newest `capacity` samples when the history holds more.
         std::uint32_t History(std::uint32_t handle, float* out, std::uint32_t capacity) const;
         std::vector<float> History(std::uint32_t handle) const;
+        // As History, with each sample's frame time beside it.
+        std::uint32_t HistoryTimed(std::uint32_t handle, float* values, double* times, std::uint32_t capacity) const;
         // Newest sample, or NaN.
         double Current(std::uint32_t handle) const;
 

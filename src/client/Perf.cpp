@@ -108,9 +108,24 @@ namespace b21ui::perf {
             return values;
         }
 
+        // The last kGraphWindowSeconds binned by time; the raw samples on a host without timed history.
+        std::vector<float> GraphSeries(const B21UI_HostApi* h, B21UI_MetricId id, const std::vector<float>& raw) {
+            if (!id || !B21UI_HOST_HAS(h, perfHistoryTimed) || !B21UI_HOST_HAS(h, perfNow)) return raw;
+            std::vector<float> values(MetricStore::kHistory);
+            std::vector<double> times(MetricStore::kHistory);
+            const auto n = h->perfHistoryTimed(id, values.data(), times.data(), static_cast<std::uint32_t>(values.size()));
+            values.resize(n);
+            times.resize(n);
+            return BinByTime(values, times, h->perfNow(), kGraphWindowSeconds, kGraphBins);
+        }
+
         const Row* Find(const std::vector<Row>& rows, std::string_view key) {
             const auto found = std::ranges::find(rows, key, &Row::key);
             return found == rows.end() ? nullptr : &*found;
+        }
+
+        float ListHeight() {
+            return BoundedListHeight(ImGui::GetContentRegionAvail().y, ImGui::GetMainViewport()->Size.y, theme::Px(200));
         }
 
         B21UI_PerfSettings GetSettings(const B21UI_HostApi* h) {
@@ -157,16 +172,19 @@ namespace b21ui::perf {
             return row && row->hasValue ? FormatValue(row->current, row->unit) : "n/a";
         }
 
-        void Graph(const char* id, const std::vector<float>& values, const char* caption, float height) {
-            if (values.empty()) {
+        // `values` gives the caption's statistics, `series` the trace.
+        void Graph(const char* id, const std::vector<float>& values, const std::vector<float>& series, const char* caption,
+                   float height) {
+            if (values.empty() || series.empty()) {
                 w::Muted(std::format("{}: no samples yet", caption));
                 return;
             }
             const auto stats = Compute(values);
             const auto overlay = std::format("{}  avg {:.2f}  p99 {:.2f}  max {:.2f}", caption, stats.average, stats.p99, stats.maximum);
+            const float peak = *std::ranges::max_element(series);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, common::HudColor());
-            ImGui::PlotLines(id, values.data(), static_cast<int>(values.size()), 0, overlay.c_str(), 0.0F,
-                             std::max(16.7F, static_cast<float>(stats.p99) * 1.3F), {ImGui::GetContentRegionAvail().x, height});
+            ImGui::PlotLines(id, series.data(), static_cast<int>(series.size()), 0, overlay.c_str(), 0.0F, GraphTop(peak, 16.7F),
+                             {ImGui::GetContentRegionAvail().x, height});
             ImGui::PopStyleColor();
         }
 
@@ -218,10 +236,17 @@ namespace b21ui::perf {
             };
             slider("Horizontal", "##anchorX", settings.anchorX);
             slider("Vertical", "##anchorY", settings.anchorY);
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("Full width");
+            ImGui::SameLine(labelWidth);
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (w::SliderFloat("##overlayWidth", settings.overlayWidth, 0.15F, 1.0F, "%.2f")) h->perfSetSettings(&settings);
+            ImGui::SetItemTooltip("Width of the Full overlay as a share of the screen; its metrics fill as many columns as fit.");
+            slider("Opacity", "##overlayOpacity", settings.overlayOpacity);
 
             w::Heading("Frame time (ms)");
-            Graph("##frameGraph", frames, "frame", theme::Px(140));
-            Graph("##gpuGraph", gpu, "GPU", theme::Px(100));
+            Graph("##frameGraph", frames, GraphSeries(h, frame ? frame->id : 0, frames), "frame", theme::Px(140));
+            Graph("##gpuGraph", gpu, GraphSeries(h, gpuRow ? gpuRow->id : 0, gpu), "GPU", theme::Px(100));
         }
 
         ImU32 DeltaColor(const Row& row, double delta) {
@@ -248,7 +273,7 @@ namespace b21ui::perf {
                 w::EmptyState(rows.empty() ? "No metrics registered yet." : "No metric matches the filter.");
                 return;
             }
-            ImGui::BeginChild("##metricList", {0, 0});
+            ImGui::BeginChild("##metricList", {0, ListHeight()});
             for (const auto& owner : owners) {
                 std::vector<const Row*> items;
                 for (const auto& row : rows)
@@ -401,7 +426,7 @@ namespace b21ui::perf {
                 w::Muted(std::format("No captures in {} yet.", ToUtf8(CaptureDirectory())));
                 return;
             }
-            ImGui::BeginChild("##captureList", {0, 0});
+            ImGui::BeginChild("##captureList", {0, ListHeight()});
             for (const auto& file : state.files) {
                 ImGui::PushID(file.name.c_str());
                 const bool current = !baseline.empty() && FromUtf8(baseline) == file.json;
