@@ -117,7 +117,9 @@ namespace b21ui {
         r->options = options;
         r->options.name = nullptr;
         r->runtime = std::make_unique<client::ClientRuntime>(client, r->name, options.padPointer,
-                                                                  options.scaleWithResolution, options.settings);
+                                                                  options.scaleWithResolution, options.settings,
+                                                                  client::SettingsHost::Title(r->settingsLabel.c_str(),
+                                                                                              options.settingsVersion));
         RegisterWithHost(*r);
         clients.push_back(std::move(r));
         return true;

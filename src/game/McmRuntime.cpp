@@ -266,7 +266,7 @@ namespace b21ui::game::McmRuntime {
             explicit McmClient(Menu menu) : menu_(std::move(menu)), registration_("MCM:" + menu_.mod) {}
             void Register() {
                 b21ui::Register(*this, {.name = registration_.c_str(), .pausesGame = true, .settings = true,
-                    .settingsLabel = menu_.name.c_str(), .settingsIcon = modern::icon::Gear, .settingsCategory = "MCM"});
+                    .settingsLabel = menu_.name.c_str(), .settingsIcon = modern::icon::Gear, .settingsCategory = "MCM", .settingsVersion = ""});
             }
             void OnFocusChanged(bool focused) override {
                 std::scoped_lock guard(mutex_);

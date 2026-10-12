@@ -13,9 +13,25 @@ local function b21ui_dirs()
     add_defines("NOMINMAX")
 end
 
+-- MOD SETTINGS shows the consumer's version: `set_values("b21ui.version", "...")` when the
+-- release name differs from the numeric plugin version, or read it from a file with
+-- `b21ui.version_file` + `b21ui.version_pattern` (a Lua pattern with one capture), else set_version().
+rule("b21ui.version")
+    on_load(function (target)
+        local version = target:values("b21ui.version")
+        local file = target:values("b21ui.version_file")
+        if not version and file and os.isfile(file) then
+            version = io.readfile(file):match(target:values("b21ui.version_pattern"))
+        end
+        version = version or target:version()
+        if version then target:add("defines", 'B21UI_MOD_VERSION="' .. version .. '"') end
+    end)
+rule_end()
+
 -- Call inside an F4SE plugin target (after the consumer includes CommonLibF4).
 function b21ui_use()
     b21ui_dirs()
+    add_rules("b21ui.version")
     add_files(path.join(b21ui_root, "src/core/*.cpp"), path.join(b21ui_root, "src/client/*.cpp"),
         path.join(b21ui_root, "src/kit/*.cpp"), path.join(b21ui_root, "src/game/*.cpp"),
         path.join(b21ui_root, "src/modern/*.cpp"), path.join(b21ui_root, "src/fo4/*.cpp"),

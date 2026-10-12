@@ -13,8 +13,10 @@
 #include <cstddef>
 
 namespace b21ui::client {
-    ClientRuntime::ClientRuntime(Client& client, std::string name, bool padPointer, bool scaleWithResolution, bool settings)
-        : client_(client), name_(std::move(name)), scaleWithResolution_(scaleWithResolution), settings_(settings), pointer_(padPointer) {}
+    ClientRuntime::ClientRuntime(Client& client, std::string name, bool padPointer, bool scaleWithResolution, bool settings,
+                                 std::string settingsTitle)
+        : client_(client), name_(std::move(name)), scaleWithResolution_(scaleWithResolution), settings_(settings),
+          settingsHost_(std::move(settingsTitle)), pointer_(padPointer) {}
 
     ClientRuntime::~ClientRuntime() {
         if (!context_) return;

@@ -15,7 +15,7 @@ namespace b21ui::client {
     class ClientRuntime {
     public:
         ClientRuntime(Client& client, std::string name, bool padPointer = true, bool scaleWithResolution = true,
-                      bool settings = false);
+                      bool settings = false, std::string settingsTitle = {});
         ~ClientRuntime();
         ClientRuntime(const ClientRuntime&) = delete;
         ClientRuntime& operator=(const ClientRuntime&) = delete;

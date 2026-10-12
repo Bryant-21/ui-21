@@ -10,6 +10,13 @@
 #include <vector>
 
 namespace b21ui::client {
+    std::string SettingsHost::Title(const char* label, const char* version) {
+        if (!version || !version[0]) return {};
+        std::string title = label && label[0] ? std::string(label) + "  " : std::string();
+        if (version[0] >= '0' && version[0] <= '9') title += 'v';
+        return title + version;
+    }
+
     void SettingsHost::Draw(Client& client, const FrameContext& frame) {
         namespace theme = modern::theme;
         namespace w = modern::w;
@@ -36,6 +43,14 @@ namespace b21ui::client {
                 ImGui::PopStyleColor();
                 ImGui::SameLine(0, theme::Px(12));
                 ImGui::TextUnformatted("MOD SETTINGS");
+            }
+            if (!title_.empty()) {
+                const float titleBottom = ImGui::GetItemRectMax().y;
+                ImGui::SameLine(0, theme::Px(18));
+                ImGui::SetCursorScreenPos({ImGui::GetCursorScreenPos().x, titleBottom - ImGui::GetTextLineHeight() - theme::Px(2)});
+                ImGui::PushStyleColor(ImGuiCol_Text, theme::Muted);
+                ImGui::TextUnformatted(title_.c_str());
+                ImGui::PopStyleColor();
             }
             ImGui::SameLine();
             ImGui::SetCursorPosX(ImGui::GetWindowWidth() - theme::Px(24) - 4 * ImGui::GetFrameHeight() - 3 * ImGui::GetStyle().ItemSpacing.x);

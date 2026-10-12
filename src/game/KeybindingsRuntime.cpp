@@ -107,6 +107,6 @@ namespace b21ui::game::KeybindingsRuntime {
     }
     bool Register(const B21UI_KeybindingProvider& provider) { return providers.Add(provider); }
     void Start() {
-        b21ui::Register(client,{.name="UI21_Keybindings",.settings=true,.settingsLabel="Keybindings",.settingsIcon=modern::icon::Keyboard});
+        b21ui::Register(client,{.name="UI21_Keybindings",.settings=true,.settingsLabel="Keybindings",.settingsIcon=modern::icon::Keyboard,.settingsVersion=""});
     }
 }

@@ -5,6 +5,11 @@
 
 namespace F4SE { class MessagingInterface; }
 
+// The consumer's version, set by b21ui_use() from the target's `b21ui.version` value or set_version().
+#ifndef B21UI_MOD_VERSION
+#define B21UI_MOD_VERSION ""
+#endif
+
 namespace b21ui {
     enum class Device : std::uint8_t { KeyboardMouse = B21UI_DEVICE_KEYBOARD_MOUSE, Gamepad = B21UI_DEVICE_GAMEPAD };
 
@@ -36,6 +41,8 @@ namespace b21ui {
         const char* settingsLabel = "";
         const char* settingsIcon = "";
         const char* settingsCategory = "Script Extender";
+        // Shown in the MOD SETTINGS header so players can report which build they run.
+        const char* settingsVersion = B21UI_MOD_VERSION;
     };
 
     class Client {

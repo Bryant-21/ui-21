@@ -44,9 +44,9 @@ int main(int argc, char** argv) {
             if (!panels.empty()) mcmPanel = panels.back().id;
         }
         b21ui::Register(first, {.name = "exampleSettings", .settings = true, .settingsLabel = "Example Mod",
-            .settingsIcon = b21ui::modern::icon::Gear});
+            .settingsIcon = b21ui::modern::icon::Gear, .settingsVersion = "alpha9"});
         b21ui::Register(second, {.name = "otherSettings", .settings = true, .settingsLabel = "Another Mod",
-            .settingsIcon = b21ui::modern::icon::Terminal});
+            .settingsIcon = b21ui::modern::icon::Terminal, .settingsVersion = "2.1.0"});
         b21ui::OpenSettings(mcmPanel);
     }
     else if (demoName == "perf" || demoName == "perf-page") {

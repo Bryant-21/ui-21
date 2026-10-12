@@ -360,7 +360,9 @@ namespace b21ui {
         for (const auto& [client, runtime] : preview::Clients())
             if (client == &c) return true;
         preview::Clients().emplace_back(&c, std::make_unique<client::ClientRuntime>(c, o.name ? o.name : "", o.padPointer,
-                                                                                o.scaleWithResolution, o.settings));
+                                                                                o.scaleWithResolution, o.settings,
+                                                                                client::SettingsHost::Title(o.settingsLabel ? o.settingsLabel : o.name,
+                                                                                                            o.settingsVersion)));
         if (o.settings) {
             B21UI_ClientDesc desc{};
             desc.size = sizeof(desc);

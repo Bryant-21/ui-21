@@ -251,6 +251,6 @@ namespace b21ui::perf {
     void RegisterPerfClients() {
         b21ui::Register(overlay, {.name = "UI21_Performance", .modal = false, .padPointer = false});
         b21ui::Register(page, {.name = "UI21_PerformancePage", .settings = true, .settingsLabel = "Performance",
-                               .settingsIcon = modern::icon::Performance, .settingsCategory = "B21UI"});
+                               .settingsIcon = modern::icon::Performance, .settingsCategory = "B21UI", .settingsVersion = ""});
     }
 }
