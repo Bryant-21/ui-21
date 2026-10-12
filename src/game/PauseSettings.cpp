@@ -29,7 +29,11 @@ public:
         if (list_.GetMember("selectedEntry", &entry) && entry.IsObject() && entry.GetMember("b21UISettings", &tagged) &&
             tagged.IsBoolean() && tagged.GetBoolean()) {
             if (args.argCount && args.args[0].IsObject()) args.args[0].Invoke("stopImmediatePropagation");
-            OpenSettings();
+            // Settings bring their own cursor and pause; a pause menu left open under them
+            // kept its own cursor and input as well.
+            if (OpenSettings())
+                if (auto* queue = RE::UIMessageQueue::GetSingleton())
+                    queue->AddMessage(RE::BSFixedString("PauseMenu"), RE::UI_MESSAGE_TYPE::kHide);
         }
     }
 

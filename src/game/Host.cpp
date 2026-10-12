@@ -132,7 +132,7 @@ namespace b21ui::game {
         client.desc.size = sizeof(B21UI_ClientDesc);
         client.name = desc.name ? desc.name : "";
         const auto id = focus_.Add(desc.kind == B21UI_KIND_OVERLAY ? core::ClientKind::Overlay : core::ClientKind::Modal,
-                                   (desc.flags & B21UI_FLAG_PAUSES_GAME) != 0);
+                                   core::SettingsRegistry::PausesGame(desc));
         clients_.push_back(std::move(client));
         clients_.back().desc.name = clients_.back().name.c_str();
         settings_.Add(id, desc);
@@ -220,7 +220,7 @@ namespace b21ui::game {
     void Host::SetPausesGame(B21UI_ClientId id, bool pausesGame) {
         {
             std::scoped_lock guard(mutex_);
-            if (!focus_.SetPausesGame(id, pausesGame)) return;
+            if (!focus_.SetPausesGame(id, pausesGame || settings_.Contains(id))) return;
         }
         ApplyGameState();
     }

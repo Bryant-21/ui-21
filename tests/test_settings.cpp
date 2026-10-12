@@ -72,3 +72,20 @@ TEST_CASE("settings labels respect the legacy descriptor size and remain stable"
     for (std::uint32_t id = 2; id < 100; ++id) registry.Add(id, desc);
     CHECK(std::string_view(panel.label) == "legacy label");
 }
+
+TEST_CASE("a settings panel always pauses the game, whatever its own flag says") {
+    B21UI_ClientDesc desc{};
+    desc.size = sizeof(desc);
+    desc.kind = B21UI_KIND_MODAL;
+    desc.flags = B21UI_FLAG_SETTINGS;
+    CHECK(b21ui::core::SettingsRegistry::PausesGame(desc));
+    desc.flags = B21UI_FLAG_SETTINGS | B21UI_FLAG_PAUSES_GAME;
+    CHECK(b21ui::core::SettingsRegistry::PausesGame(desc));
+    desc.flags = 0;
+    CHECK_FALSE(b21ui::core::SettingsRegistry::PausesGame(desc));
+    desc.flags = B21UI_FLAG_PAUSES_GAME;
+    CHECK(b21ui::core::SettingsRegistry::PausesGame(desc));
+    desc.kind = B21UI_KIND_OVERLAY;
+    desc.flags = B21UI_FLAG_SETTINGS;
+    CHECK_FALSE(b21ui::core::SettingsRegistry::PausesGame(desc));
+}
