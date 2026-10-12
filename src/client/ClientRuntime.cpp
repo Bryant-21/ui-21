@@ -1,4 +1,5 @@
 #include "client/ClientRuntime.h"
+#include "client/DrawDataPolicy.h"
 #include "client/PadKeyboardView.h"
 #include "b21ui/fo76/Style.h"
 #include "b21ui/Paths.h"
@@ -105,7 +106,8 @@ namespace b21ui::client {
             common::DrawGameCursor(ImGui::GetForegroundDrawList(), io.MousePos, common::HudColor(), ImGui::GetStyle().MouseCursorScale);
         }
         ImGui::Render();
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        if (auto* drawData = ImGui::GetDrawData(); NeedsRenderDrawData(drawData))
+            ImGui_ImplDX11_RenderDrawData(drawData);
         ImGui::SetCurrentContext(previous);
     }
 
