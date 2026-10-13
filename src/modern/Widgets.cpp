@@ -260,9 +260,13 @@ namespace b21ui::modern::w {
         ImGui::PushStyleColor(ImGuiCol_Button, active ? theme::AccentSoft : IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Text, active ? theme::Accent : theme::Muted);
+        // Wider horizontal than vertical padding leaves less than 1em to centre in, and ImGui left-aligns a
+        // glyph that overflows it, pushing wide icons off the button's centre.
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, ImGui::GetStyle().FramePadding.y});
         ImGui::BeginDisabled(!enabled);
         const bool pressed = ImGui::Button(glyph, {side, side});
         ImGui::EndDisabled();
+        ImGui::PopStyleVar();
         ImGui::PopStyleColor(3);
         if (tooltip) Tooltip(tooltip);
         ImGui::PopID();

@@ -6,7 +6,9 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <cctype>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace b21ui::client {
@@ -23,6 +25,8 @@ namespace b21ui::client {
         theme::SetAppearanceClient("UI21_Settings");
         theme::Apply(std::max(1.0F, frame.height / 1080.0F));
         fullscreen_ = theme::SavedFullscreen("UI21_Settings");
+        const bool autoExpand = theme::SavedWindowFlag("UI21_Settings", "ExpandModSettings");
+        if (!std::exchange(navigationRestored_, true)) navigationExpanded_ = autoExpand;
         const auto popupOpen = [] {
             return ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
         };
@@ -54,7 +58,13 @@ namespace b21ui::client {
             }
             ImGui::SameLine();
             ImGui::SetCursorPosX(ImGui::GetWindowWidth() - theme::Px(24) - 4 * ImGui::GetFrameHeight() - 3 * ImGui::GetStyle().ItemSpacing.x);
-            w::QuickSettings("settingsAppearance", appearance_, {}, "Settings appearance");
+            w::QuickSettings("settingsAppearance", appearance_, [&] {
+                w::Heading("Mod list");
+                if (w::Switch("Expand mod settings on open", autoExpand)) {
+                    theme::SaveWindowFlag("UI21_Settings", "ExpandModSettings", !autoExpand);
+                    navigationExpanded_ = !autoExpand;
+                }
+            }, "Settings appearance");
             ImGui::SameLine();
             w::WindowLauncher(client, "ui21Settings");
             ImGui::SameLine();
@@ -69,13 +79,20 @@ namespace b21ui::client {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {theme::Px(14), theme::Px(20)});
             ImGui::BeginChild("##settingsMods", {sidebarWidth, 0}, ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened);
             ImGui::PopStyleVar();
-            const auto panels = SettingsPanels();
+            auto panels = SettingsPanels();
+            const auto lower = [](std::string text) {
+                std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return text;
+            };
+            std::ranges::stable_sort(panels, {}, [&](const auto& panel) { return lower(panel.label ? panel.label : ""); });
             std::vector<std::string> categories;
             for (const auto& panel : panels) {
                 const std::string category = SettingsCategory(panel.id);
                 if (std::ranges::find(categories, category) == categories.end()) categories.push_back(category);
             }
+            std::ranges::stable_sort(categories, {}, lower);
             std::stable_partition(categories.begin(), categories.end(), [](const auto& category) { return category == "Script Extender"; });
+            std::stable_partition(categories.begin(), categories.end(), [](const auto& category) { return category != "B21UI"; });
             for (const auto& category : categories) {
                 w::Heading(category.c_str());
                 for (const auto& panel : panels) {
