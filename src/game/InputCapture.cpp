@@ -53,6 +53,10 @@ namespace b21ui::game::InputCapture {
             }
             void OnCharacterEvent(const RE::CharacterEvent* e) override {
                 Host::Get().OnRawInput({core::RawKind::Character, core::RawDevice::Keyboard, 0, 0, 0, 0, 0, e->charCode});
+                // Characters carry no disabled flag; only a stop keeps them from the UI menu stack,
+                // which processes the queue after MenuControls.
+                if (Host::Get().FocusedCapturesCharacters())
+                    const_cast<RE::CharacterEvent*>(e)->handled = RE::InputEvent::HANDLED_RESULT::kStop;
             }
             void OnMouseMoveEvent(const RE::MouseMoveEvent* e) override {
                 Host::Get().OnRawInput({core::RawKind::MouseMove, core::RawDevice::Mouse, 0, 0, 0,

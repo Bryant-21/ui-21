@@ -28,6 +28,7 @@ namespace b21ui::game {
         [[nodiscard]] std::uint32_t ActiveDevice();
         void SetCursor(float x, float y);
         [[nodiscard]] bool WantsGameState();
+        [[nodiscard]] bool FocusedCapturesCharacters();
 
         void OnRawInput(const core::RawInput& input);
         void OnWindowFocus(bool focused);

@@ -237,6 +237,12 @@ namespace b21ui::game {
 
     bool Host::WantsGameState() { return wantsGameState_; }
 
+    bool Host::FocusedCapturesCharacters() {
+        std::scoped_lock guard(mutex_);
+        const auto* client = Find(focus_.Focused());
+        return client && (client->desc.flags & B21UI_FLAG_CAPTURES_CHARACTERS) != 0;
+    }
+
     void Host::SetCursor(float x, float y) {
         float width{}, height{};
         {

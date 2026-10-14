@@ -90,7 +90,8 @@ namespace b21ui {
             const B21UI_ClientDesc desc{sizeof(B21UI_ClientDesc), r.name.c_str(),
                 r.options.modal ? static_cast<std::uint32_t>(B21UI_KIND_MODAL) : static_cast<std::uint32_t>(B21UI_KIND_OVERLAY),
                 (r.options.pausesGame ? static_cast<std::uint32_t>(B21UI_FLAG_PAUSES_GAME) : 0u) |
-                (r.options.settings ? static_cast<std::uint32_t>(B21UI_FLAG_SETTINGS) : 0u),
+                (r.options.settings ? static_cast<std::uint32_t>(B21UI_FLAG_SETTINGS) : 0u) |
+                (r.options.capturesCharacters ? static_cast<std::uint32_t>(B21UI_FLAG_CAPTURES_CHARACTERS) : 0u),
                 &r, &RenderThunk, &DeviceLostThunk, &FocusThunk, r.settingsLabel.c_str(), r.settingsIcon.c_str(),
                 r.settingsCategory.c_str()};
             r.id = host->registerClient(&desc);

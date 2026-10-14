@@ -43,6 +43,9 @@ namespace b21ui {
         const char* settingsCategory = "Script Extender";
         // Shown in the MOD SETTINGS header so players can report which build they run.
         const char* settingsVersion = B21UI_MOD_VERSION;
+        // While focused, typed characters stop here instead of also reaching game menus. Opt in when
+        // a vanilla menu stays open underneath the client (the console), or its text field fills too.
+        bool capturesCharacters = false;
     };
 
     class Client {

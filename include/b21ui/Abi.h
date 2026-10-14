@@ -16,7 +16,7 @@ typedef void (*B21UI_TaskCallback)(void* user);
 
 enum { B21UI_DEVICE_KEYBOARD_MOUSE = 0, B21UI_DEVICE_GAMEPAD = 1 };
 enum { B21UI_KIND_MODAL = 0, B21UI_KIND_OVERLAY = 1 };
-enum { B21UI_FLAG_PAUSES_GAME = 1u << 0, B21UI_FLAG_SETTINGS = 1u << 1 };
+enum { B21UI_FLAG_PAUSES_GAME = 1u << 0, B21UI_FLAG_SETTINGS = 1u << 1, B21UI_FLAG_CAPTURES_CHARACTERS = 1u << 2 };
 enum { B21UI_FRAME_DRAW_CURSOR = 1u << 0 };
 
 enum B21UI_EventType {
