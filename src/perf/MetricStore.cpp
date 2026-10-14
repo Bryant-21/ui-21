@@ -19,6 +19,10 @@ namespace b21ui::perf {
         std::array<float, kHistory> ring{};
         std::array<double, kHistory> times{};
         std::uint32_t head{}, size{};
+        // The overlay and page Read() every metric each frame; the percentiles are cached.
+        Stats stats;
+        double statsAt = -1.0;
+        std::uint32_t statsHead{}, statsSize{};
     };
 
     MetricStore::MetricStore() = default;
@@ -137,20 +141,34 @@ namespace b21ui::perf {
     }
 
     bool MetricStore::Read(std::uint32_t handle, Snapshot& out) const {
-        const auto* entry = At(handle);
+        auto* entry = At(handle);
         if (!entry) return false;
         std::array<float, kHistory> copy;
-        std::uint32_t n{};
+        std::uint32_t n{}, head{};
+        double newest{};
         {
             std::scoped_lock guard(entry->lock);
             out.hasValue = entry->hasValue;
             out.current = entry->current;
             out.text = entry->text;
             n = entry->size;
+            head = entry->head;
+            newest = n ? entry->times[(entry->head + kHistory - 1) % kHistory] : 0.0;
+            const bool unchanged = entry->head == entry->statsHead && entry->size == entry->statsSize;
+            // A clock that does not advance (tests pass no time) recomputes on every new sample.
+            if (entry->statsAt >= 0.0 && (unchanged || (newest > entry->statsAt && newest - entry->statsAt < kStatsRefreshSeconds))) {
+                out.stats = entry->stats;
+                return true;
+            }
             const auto start = (entry->head + kHistory - n) % kHistory;
             for (std::uint32_t i = 0; i < n; ++i) copy[i] = entry->ring[(start + i) % kHistory];
         }
         out.stats = Compute(std::span<const float>(copy.data(), n));
+        std::scoped_lock guard(entry->lock);
+        entry->stats = out.stats;
+        entry->statsAt = newest;
+        entry->statsHead = head;
+        entry->statsSize = n;
         return true;
     }
 }

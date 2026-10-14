@@ -136,8 +136,11 @@ namespace b21ui::perf {
                                  std::size_t bins) {
         const auto n = std::min(values.size(), times.size());
         if (bins == 0 || !(window > 0.0)) return {};
-        const double start = end - window;
         const double width = window / static_cast<double>(bins);
+        // Bin edges sit on a fixed time grid: edges that slid with `end` every frame moved samples
+        // between bins each redraw, and the whole trace shimmered.
+        end = std::ceil(end / width - 1e-6) * width;
+        const double start = end - window;
         std::vector<double> sums(bins, 0.0);
         std::vector<std::uint32_t> counts(bins, 0);
         bool any = false;

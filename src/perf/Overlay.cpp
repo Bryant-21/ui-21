@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -23,6 +25,13 @@ namespace b21ui::perf {
             std::string label, value;
             bool header{};
         };
+
+        double RecentAverage(std::span<const float> history) {
+            const auto recent = history.last(std::min<std::size_t>(history.size(), 60));
+            double sum = 0.0;
+            for (const auto v : recent) sum += v;
+            return recent.empty() ? 0.0 : sum / static_cast<double>(recent.size());
+        }
 
         ImU32 Fade(ImU32 color, float alpha) {
             return (color & ~IM_COL32_A_MASK) | (static_cast<ImU32>(std::clamp(alpha, 0.0F, 1.0F) * 255.0F) << IM_COL32_A_SHIFT);
@@ -124,12 +133,10 @@ namespace b21ui::perf {
                 if (ImGui::Begin("##b21uiPerformance", nullptr, flags)) {
                     history_.resize(MetricStore::kHistory);
                     history_.resize(store.History(core.frameMs, history_.data(), MetricStore::kHistory));
-                    const auto recent = std::span<const float>(history_).last(std::min<std::size_t>(history_.size(), 60));
-                    double sum = 0.0;
-                    for (const auto v : recent) sum += v;
-                    const double average = recent.empty() ? 0.0 : sum / static_cast<double>(recent.size());
-                    const double latest = history_.empty() ? 0.0 : history_.back();
-                    const double gpu = store.Current(core.gpuMs);
+                    const double average = RecentAverage(history_);
+                    gpuHistory_.resize(MetricStore::kHistory);
+                    gpuHistory_.resize(store.History(core.gpuMs, gpuHistory_.data(), MetricStore::kHistory));
+                    const double gpu = gpuHistory_.empty() ? std::numeric_limits<double>::quiet_NaN() : RecentAverage(gpuHistory_);
                     {
                         w::FontScope bold(theme::CurrentFonts().bold, theme::HeadingSize);
                         ImGui::PushStyleColor(ImGuiCol_Text, hud);
@@ -139,8 +146,9 @@ namespace b21ui::perf {
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
                     ImGui::PushStyleColor(ImGuiCol_Text, theme::Muted);
-                    if (std::isfinite(gpu)) ImGui::Text("FPS \xC2\xB7 %.2f ms \xC2\xB7 GPU %.2f ms", latest, gpu);
-                    else ImGui::Text("FPS \xC2\xB7 %.2f ms", latest);
+                    // The 60-frame average beside the FPS it explains: one raw frame made the text flicker.
+                    if (std::isfinite(gpu)) ImGui::Text("FPS \xC2\xB7 %.2f ms \xC2\xB7 GPU %.2f ms", average, gpu);
+                    else ImGui::Text("FPS \xC2\xB7 %.2f ms", average);
                     ImGui::PopStyleColor();
                     if (const auto state = host.Capture().state; state != B21UI_CAPTURE_IDLE) {
                         ImGui::SameLine();
@@ -174,7 +182,27 @@ namespace b21ui::perf {
                                      std::max(top, 33.4F), {theme::Px(260), theme::Px(56)});
                     ImGui::PopStyleColor(2);
                 }
-                std::vector<Line> lines;
+                // Text is rebuilt four times a second: formatting every metric each frame cost more than the
+                // overlay draw, and values that change every frame cannot be read anyway.
+                const double now = host.Now();
+                if (mode != linesMode_ || !(now - linesAt_ < 0.25)) {
+                    linesAt_ = now;
+                    linesMode_ = mode;
+                    pinnedLines_.clear();
+                    fullLines_.clear();
+                    BuildLines(host, mode);
+                }
+                DrawLines(pinnedLines_, hud);
+                if (mode < B21UI_PERF_MODE_FULL) return;
+                ImGui::Dummy({0, theme::Px(2)});
+                ImGui::Separator();
+                DrawLineColumns(fullLines_, hud);
+            }
+
+            void BuildLines(Host& host, std::uint32_t mode) {
+                auto& store = host.Store();
+                const auto& core = host.CoreIds();
+                auto& lines = pinnedLines_;
                 const auto lows = FrameLows(history_);
                 lines.push_back({"1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low1Fps)});
                 lines.push_back({"0.1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low01Fps)});
@@ -208,27 +236,27 @@ namespace b21ui::perf {
                         lines.push_back({meta->label, ValueText(*meta, snapshot, false)});
                     }
                 }
-                DrawLines(lines, hud);
-                if (mode < B21UI_PERF_MODE_FULL) return;
 
-                lines.clear();
+                if (mode < B21UI_PERF_MODE_FULL) return;
+                auto& full = fullLines_;
                 for (const auto& owner : owners) {
-                    lines.push_back({Upper(owner), {}, true});
+                    full.push_back({Upper(owner), {}, true});
                     for (std::uint32_t i = 1; i <= count; ++i) {
                         const auto* meta = store.Meta(i);
                         if (meta->owner != owner) continue;
                         store.Read(i, snapshot);
-                        lines.push_back({meta->label, ValueText(*meta, snapshot, true)});
+                        full.push_back({meta->label, ValueText(*meta, snapshot, true)});
                     }
                 }
-                ImGui::Dummy({0, theme::Px(2)});
-                ImGui::Separator();
-                DrawLineColumns(lines, hud);
             }
 
             std::vector<float> history_;
             std::vector<float> timedValues_;
             std::vector<double> timedTimes_;
+            std::vector<float> gpuHistory_;
+            std::vector<Line> pinnedLines_, fullLines_;
+            double linesAt_ = -1.0;
+            std::uint32_t linesMode_{};
         };
 
         class PageView final : public Client {

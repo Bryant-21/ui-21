@@ -70,11 +70,11 @@ namespace b21ui::game::RenderHooks {
             const float dt = std::chrono::duration<float>(now - lastFrame).count();
             lastFrame = now;
             perf::Host::Get().OnPresent(device, context);
-            if (EnsureBackbuffer(chain)) {
+            auto& host = Host::Get();
+            if (host.AnyOpen() && EnsureBackbuffer(chain)) {
                 client::D3D11State saved(context);
                 BindBackbuffer();
                 const auto w = static_cast<float>(backbufferWidth), h = static_cast<float>(backbufferHeight);
-                auto& host = Host::Get();
                 host.RenderClients(false, device, context, w, h, dt, 0);
                 // M0: the modal draws in Present, last, with the B21UI cursor on top of everything.
                 host.RenderClients(true, device, context, w, h, dt, B21UI_FRAME_DRAW_CURSOR);
