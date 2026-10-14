@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <limits>
 
 namespace b21ui::perf {
     std::string_view OwnerOf(std::string_view id) {
@@ -117,6 +118,26 @@ namespace b21ui::perf {
         }
     }
 
+    std::vector<OverlayRow> PinnedRows(std::span<const PinView> metrics) {
+        constexpr std::string_view host = "b21ui";
+        std::vector<OverlayRow> rows;
+        for (std::size_t i = 0; i < metrics.size(); ++i)
+            if (metrics[i].owner == host && metrics[i].pinned && metrics[i].id != kFrameMs && metrics[i].id != kFrameFps)
+                rows.push_back({i, false});
+        std::vector<std::string_view> owners;
+        for (const auto& m : metrics)
+            if (m.owner != host && std::ranges::find(owners, m.owner) == owners.end()) owners.push_back(m.owner);
+        for (const auto owner : owners) {
+            bool header = false;
+            for (std::size_t i = 0; i < metrics.size(); ++i) {
+                if (metrics[i].owner != owner || !metrics[i].pinned) continue;
+                if (!header) rows.push_back({i, header = true});
+                rows.push_back({i, false});
+            }
+        }
+        return rows;
+    }
+
     std::uint32_t OverlayColumns(float available, float columnWidth) {
         if (!(columnWidth > 0.0F) || !(available > columnWidth)) return 1;
         return static_cast<std::uint32_t>(available / columnWidth);
@@ -137,31 +158,40 @@ namespace b21ui::perf {
         const auto n = std::min(values.size(), times.size());
         if (bins == 0 || !(window > 0.0)) return {};
         const double width = window / static_cast<double>(bins);
-        // Bin edges sit on a fixed time grid: edges that slid with `end` every frame moved samples
-        // between bins each redraw, and the whole trace shimmered.
-        end = std::ceil(end / width - 1e-6) * width;
+        // Bin edges sit on a fixed time grid and only finished bins are shown: edges that slid with
+        // `end`, or a still-filling newest bin, changed values every redraw and the trace shimmered.
+        end = std::floor(end / width + 1e-6) * width;
         const double start = end - window;
+        // A history shorter than the window starts mid-bin, and that bin loses samples as the ring
+        // rolls; the trace starts at the first whole bin instead of holding a flat line to the left edge.
+        double oldest = std::numeric_limits<double>::infinity();
+        for (std::size_t i = 0; i < n; ++i)
+            if (std::isfinite(values[i])) oldest = std::min(oldest, times[i]);
+        const std::size_t first = oldest > start ? static_cast<std::size_t>((oldest - start) / width) + 1 : 0;
+        if (first >= bins) return {};
         std::vector<double> sums(bins, 0.0);
         std::vector<std::uint32_t> counts(bins, 0);
         bool any = false;
         for (std::size_t i = 0; i < n; ++i) {
             if (!(times[i] > start) || times[i] > end || !std::isfinite(values[i])) continue;
             const auto bin = std::min(bins - 1, static_cast<std::size_t>((times[i] - start) / width));
+            if (bin < first) continue;
             sums[bin] += values[i];
             ++counts[bin];
             any = true;
         }
         if (!any) return {};
-        std::vector<float> out(bins);
+        std::vector<float> out;
+        out.reserve(bins - first);
         float held = 0.0F;
-        for (std::size_t i = 0; i < bins; ++i)
+        for (std::size_t i = first; i < bins; ++i)
             if (counts[i]) {
                 held = static_cast<float>(sums[i] / counts[i]);
                 break;
             }
-        for (std::size_t i = 0; i < bins; ++i) {
+        for (std::size_t i = first; i < bins; ++i) {
             if (counts[i]) held = static_cast<float>(sums[i] / counts[i]);
-            out[i] = held;
+            out.push_back(held);
         }
         return out;
     }

@@ -51,6 +51,19 @@ namespace b21ui::perf {
         std::set<std::string> pinned_, unpinned_;
     };
 
+    // The Expanded overlay's rows: every pinned metric, in registration order, grouped by owner (owners in
+    // first-seen order). The host's own metrics come first with no header; the frame time and FPS sit in
+    // the headline and are never repeated. `index` points into the input; a header row names its owner.
+    struct PinView {
+        std::string_view id, owner;
+        bool pinned{};
+    };
+    struct OverlayRow {
+        std::size_t index{};
+        bool header{};
+    };
+    std::vector<OverlayRow> PinnedRows(std::span<const PinView> metrics);
+
     // The full overlay's metric columns: as many as the overlay width holds, at least one.
     std::uint32_t OverlayColumns(float available, float columnWidth);
     std::size_t RowsPerColumn(std::size_t lines, std::uint32_t columns);
@@ -63,8 +76,9 @@ namespace b21ui::perf {
 
     // Realtime graphs: the samples in (end - window, end] averaged into `bins` equal time slots, so
     // the trace scrolls at one speed whatever the frame rate and single-frame jitter is blended.
-    // An empty slot holds the value before it; empty leading slots take the first value seen.
-    // Empty when no sample is in the window.
+    // Only finished slots on a fixed time grid are returned (`end` rounds down to a slot edge). A history
+    // shorter than the window starts at its first whole slot, so the result can be shorter than `bins`
+    // and the plot still spans its box. An empty slot holds the value before it. Empty when no sample is in.
     std::vector<float> BinByTime(std::span<const float> values, std::span<const double> times, double end, double window,
                                  std::size_t bins);
     inline constexpr double kGraphWindowSeconds = 10.0;

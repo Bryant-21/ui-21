@@ -179,7 +179,7 @@ namespace b21ui::perf {
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, hud);
                     ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 90));
                     ImGui::PlotLines("##frames", series.data(), static_cast<int>(series.size()), 0, nullptr, 0.0F,
-                                     std::max(top, 33.4F), {theme::Px(260), theme::Px(56)});
+                                     std::max(top, 33.4F), {std::max(theme::Px(260), ImGui::GetContentRegionAvail().x), theme::Px(56)});
                     ImGui::PopStyleColor(2);
                 }
                 // Text is rebuilt four times a second: formatting every metric each frame cost more than the
@@ -201,48 +201,41 @@ namespace b21ui::perf {
 
             void BuildLines(Host& host, std::uint32_t mode) {
                 auto& store = host.Store();
-                const auto& core = host.CoreIds();
                 auto& lines = pinnedLines_;
                 const auto lows = FrameLows(history_);
                 lines.push_back({"1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low1Fps)});
                 lines.push_back({"0.1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low01Fps)});
-                const auto coreLine = [&](const char* label, std::uint32_t handle, std::uint32_t unit) {
-                    const double value = store.Current(handle);
-                    lines.push_back({label, std::isfinite(value) ? FormatValue(value, unit) : "n/a"});
-                };
-                coreLine("GPU", core.gpuMs, B21UI_UNIT_MS);
-                coreLine("CPU", core.cpu, B21UI_UNIT_PERCENT);
-                coreLine("RAM", core.ram, B21UI_UNIT_MB);
-                coreLine("VRAM", core.vram, B21UI_UNIT_MB);
 
                 const auto count = store.Count();
-                std::vector<std::string> owners;
+                std::vector<const MetricMeta*> metas;
+                std::vector<PinView> views;
                 for (std::uint32_t i = 1; i <= count; ++i) {
                     const auto* meta = store.Meta(i);
-                    if (meta->owner != "b21ui" && std::ranges::find(owners, meta->owner) == owners.end()) owners.push_back(meta->owner);
+                    metas.push_back(meta);
+                    views.push_back({meta->id, meta->owner, host.IsPinned(i)});
                 }
                 MetricStore::Snapshot snapshot;
-                for (const auto& owner : owners) {
-                    if (mode >= B21UI_PERF_MODE_FULL) break;
-                    bool header = false;
-                    for (std::uint32_t i = 1; i <= count; ++i) {
-                        const auto* meta = store.Meta(i);
-                        if (meta->owner != owner || !host.IsPinned(i)) continue;
-                        if (!header) {
-                            lines.push_back({Upper(owner), {}, true});
-                            header = true;
-                        }
-                        store.Read(i, snapshot);
-                        lines.push_back({meta->label, ValueText(*meta, snapshot, false)});
+                // Full lists every metric below, so its pinned block keeps only the host's own rows.
+                for (const auto& row : PinnedRows(views)) {
+                    const auto* meta = metas[row.index];
+                    if (mode >= B21UI_PERF_MODE_FULL && meta->owner != "b21ui") break;
+                    if (row.header) {
+                        lines.push_back({Upper(meta->owner), {}, true});
+                        continue;
                     }
+                    store.Read(static_cast<std::uint32_t>(row.index + 1), snapshot);
+                    lines.push_back({meta->label, ValueText(*meta, snapshot, false)});
                 }
 
                 if (mode < B21UI_PERF_MODE_FULL) return;
+                std::vector<std::string_view> owners;
+                for (const auto* meta : metas)
+                    if (meta->owner != "b21ui" && std::ranges::find(owners, meta->owner) == owners.end()) owners.push_back(meta->owner);
                 auto& full = fullLines_;
-                for (const auto& owner : owners) {
-                    full.push_back({Upper(owner), {}, true});
+                for (const auto owner : owners) {
+                    full.push_back({Upper(std::string(owner)), {}, true});
                     for (std::uint32_t i = 1; i <= count; ++i) {
-                        const auto* meta = store.Meta(i);
+                        const auto* meta = metas[i - 1];
                         if (meta->owner != owner) continue;
                         store.Read(i, snapshot);
                         full.push_back({meta->label, ValueText(*meta, snapshot, true)});

@@ -287,9 +287,10 @@ TEST_CASE("perf history: each sample keeps the time of the frame that closed it"
 }
 
 TEST_CASE("perf graph: samples are averaged into fixed time bins over a fixed window") {
-    // Two samples in the last bin, one in the first; the middle bin is empty and holds the value before it.
-    const std::vector<float> values{4.0F, 10.0F, 20.0F};
-    const std::vector<double> times{0.05, 0.95, 0.99};
+    // A sample before the window means the history covers all of it. Two samples in the last bin, one in
+    // the first; the middle bin is empty and holds the value before it.
+    const std::vector<float> values{100.0F, 4.0F, 10.0F, 20.0F};
+    const std::vector<double> times{-0.5, 0.05, 0.95, 0.99};
     const auto bins = BinByTime(values, times, 1.0, 1.0, 3);
     REQUIRE(bins.size() == 3);
     CHECK(bins[0] == doctest::Approx(4.0F));
@@ -305,18 +306,41 @@ TEST_CASE("perf graph: samples are averaged into fixed time bins over a fixed wi
     CHECK(BinByTime({}, {}, 1.0, 1.0, 4).empty());
 }
 
-TEST_CASE("perf graph: bins do not move while the clock advances inside one bin") {
-    const std::vector<float> values{2.0F, 4.0F, 6.0F, 8.0F};
-    const std::vector<double> times{0.10, 0.30, 0.55, 0.70};
-    const auto a = BinByTime(values, times, 0.71, 1.0, 4);
-    const auto b = BinByTime(values, times, 0.74, 1.0, 4);
+TEST_CASE("perf graph: only finished bins on a fixed grid, so the trace holds still between bins") {
+    const std::vector<float> values{2.0F, 4.0F, 6.0F, 8.0F, 50.0F};
+    const std::vector<double> times{0.10, 0.30, 0.55, 0.70, 0.80};
+    // Anywhere inside [0.75, 1.0) the finished bins are the same; the 0.80 sample waits for its bin to close.
+    const auto a = BinByTime(values, times, 0.76, 1.0, 4);
+    const auto b = BinByTime(values, times, 0.99, 1.0, 4);
     CHECK(a == b);
-    REQUIRE(a.size() == 4);
-    // Edges at -0.25 / 0 / 0.25 / 0.5 / 0.75: the empty first bin holds the first value seen.
-    CHECK(a[0] == doctest::Approx(2.0F));
-    CHECK(a[1] == doctest::Approx(2.0F));
-    CHECK(a[2] == doctest::Approx(4.0F));
-    CHECK(a[3] == doctest::Approx(7.0F));
+    // Edges -0.25 / 0 / 0.25 / 0.5 / 0.75. The history starts at 0.10, inside [0, 0.25), so that partial
+    // bin and the empty one before it are left out instead of drawn as a flat line to the left edge.
+    REQUIRE(a.size() == 2);
+    CHECK(a[0] == doctest::Approx(4.0F));
+    CHECK(a[1] == doctest::Approx(7.0F));
+    const auto c = BinByTime(values, times, 1.0, 1.0, 4);
+    REQUIRE(c.size() == 3);
+    CHECK(c[2] == doctest::Approx(50.0F));
+}
+
+TEST_CASE("perf overlay: Expanded rows are the pinned metrics, host rows first, other owners under a header") {
+    const std::vector<PinView> metrics{
+        {kFrameMs, "b21ui", true},     {kFrameFps, "b21ui", true}, {kGpuMs, "b21ui", true},
+        {kCpuPercent, "b21ui", false}, {"fo4cs.a", "fo4cs", false}, {"fo4cs.b", "fo4cs", true},
+        {"other.x", "other", false},   {kRamMb, "b21ui", true},     {"fo4cs.c", "fo4cs", true},
+    };
+    const auto rows = PinnedRows(metrics);
+    // GPU and RAM (CPU unpinned; frame time and FPS live in the headline), then FO4CS b and c.
+    REQUIRE(rows.size() == 5);
+    CHECK((rows[0].index == 2 && !rows[0].header));
+    CHECK((rows[1].index == 7 && !rows[1].header));
+    CHECK((rows[2].index == 5 && rows[2].header));
+    CHECK((rows[3].index == 5 && !rows[3].header));
+    CHECK((rows[4].index == 8 && !rows[4].header));
+    // An owner with nothing pinned gets no header; unpinning everything leaves no rows.
+    std::vector<PinView> none(metrics);
+    for (auto& m : none) m.pinned = false;
+    CHECK(PinnedRows(none).empty());
 }
 
 TEST_CASE("perf store: Read reuses its statistics until a quarter second of samples has passed") {
