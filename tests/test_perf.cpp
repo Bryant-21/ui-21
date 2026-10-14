@@ -305,6 +305,39 @@ TEST_CASE("perf graph: samples are averaged into fixed time bins over a fixed wi
     CHECK(BinByTime({}, {}, 1.0, 1.0, 4).empty());
 }
 
+TEST_CASE("perf graph: bins do not move while the clock advances inside one bin") {
+    const std::vector<float> values{2.0F, 4.0F, 6.0F, 8.0F};
+    const std::vector<double> times{0.10, 0.30, 0.55, 0.70};
+    const auto a = BinByTime(values, times, 0.71, 1.0, 4);
+    const auto b = BinByTime(values, times, 0.74, 1.0, 4);
+    CHECK(a == b);
+    REQUIRE(a.size() == 4);
+    // Edges at -0.25 / 0 / 0.25 / 0.5 / 0.75: the empty first bin holds the first value seen.
+    CHECK(a[0] == doctest::Approx(2.0F));
+    CHECK(a[1] == doctest::Approx(2.0F));
+    CHECK(a[2] == doctest::Approx(4.0F));
+    CHECK(a[3] == doctest::Approx(7.0F));
+}
+
+TEST_CASE("perf store: Read reuses its statistics until a quarter second of samples has passed") {
+    MetricStore store;
+    const auto id = store.Register("t.cached", "cached", "", B21UI_UNIT_MS, 0);
+    store.Push(id, 1.0);
+    store.CloseFrame(nullptr, false, 1.0);
+    MetricStore::Snapshot s;
+    store.Read(id, s);
+    CHECK(s.stats.maximum == doctest::Approx(1.0));
+    store.Push(id, 9.0);
+    store.CloseFrame(nullptr, false, 1.1);
+    store.Read(id, s);
+    CHECK(s.current == doctest::Approx(9.0));
+    CHECK(s.stats.maximum == doctest::Approx(1.0));
+    store.Push(id, 9.0);
+    store.CloseFrame(nullptr, false, 1.3);
+    store.Read(id, s);
+    CHECK(s.stats.maximum == doctest::Approx(9.0));
+}
+
 TEST_CASE("perf graph: the top of the scale moves in fixed steps, not with every spike") {
     CHECK(GraphTop(5.0F, 16.7F) == doctest::Approx(16.7F));
     CHECK(GraphTop(16.0F, 16.7F) == doctest::Approx(16.7F));

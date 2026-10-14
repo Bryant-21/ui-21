@@ -159,6 +159,7 @@ namespace b21ui::game {
             const bool wasFocused = focus_.Focused() == id;
             if (!focus_.Open(id)) return false;
             wantsGameState_ = focus_.WantsGameState();
+            anyOpen_ = !focus_.RenderOrder().empty();
             if (!wasFocused && focus_.Focused() == id)
                 if (const auto* c = Find(id)) notify = c->desc;
         }
@@ -191,6 +192,7 @@ namespace b21ui::game {
             focus_.Open(target);
             settings_.Select(target);
             wantsGameState_ = focus_.WantsGameState();
+            anyOpen_ = !focus_.RenderOrder().empty();
             opened = Find(target)->desc;
         }
         // Change panels without dropping the shared cursor, player-control lock or pause menu.
@@ -207,6 +209,7 @@ namespace b21ui::game {
             const bool wasFocused = id != 0 && focus_.Focused() == id;
             focus_.Close(id);
             wantsGameState_ = focus_.WantsGameState();
+            anyOpen_ = !focus_.RenderOrder().empty();
             if (wasFocused) {
                 translator_.ReleaseAll(pending_);
                 pending_.clear();

@@ -28,6 +28,8 @@ namespace b21ui::game {
         [[nodiscard]] std::uint32_t ActiveDevice();
         void SetCursor(float x, float y);
         [[nodiscard]] bool WantsGameState();
+        // Lock-free: Present skips all D3D and ImGui work while no client is open.
+        [[nodiscard]] bool AnyOpen() const { return anyOpen_.load(std::memory_order_relaxed); }
 
         void OnRawInput(const core::RawInput& input);
         void OnWindowFocus(bool focused);
@@ -54,6 +56,7 @@ namespace b21ui::game {
         std::vector<Client> clients_;
         bool available_{};
         std::atomic<bool> wantsGameState_{};
+        std::atomic<bool> anyOpen_{};
         float lastWidth_{};
         float lastHeight_{};
     };

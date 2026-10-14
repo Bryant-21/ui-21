@@ -30,6 +30,8 @@ namespace b21ui::perf {
     public:
         static constexpr std::uint32_t kMaxMetrics = 1024;
         static constexpr std::uint32_t kHistory = 1024;
+        // Read() recomputes a metric's statistics at most this often (in sample time).
+        static constexpr double kStatsRefreshSeconds = 0.25;
 
         MetricStore();
         ~MetricStore();
