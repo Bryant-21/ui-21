@@ -93,20 +93,51 @@ namespace b21ui::client {
             std::ranges::stable_sort(categories, {}, lower);
             std::stable_partition(categories.begin(), categories.end(), [](const auto& category) { return category == "Script Extender"; });
             std::stable_partition(categories.begin(), categories.end(), [](const auto& category) { return category != "B21UI"; });
-            for (const auto& category : categories) {
-                w::Heading(category.c_str());
-                for (const auto& panel : panels) {
-                    if (category != SettingsCategory(panel.id)) continue;
-                    ImGui::PushID(static_cast<int>(panel.id));
+            const auto favoriteKey = [](const auto& panel) { return std::string("Favorite:") + (panel.label ? panel.label : ""); };
+            const auto isFavorite = [&](const auto& panel) {
+                const auto key = favoriteKey(panel);
+                const auto found = favorites_.find(key);
+                return found != favorites_.end() ? found->second
+                                                 : favorites_.emplace(key, theme::SavedWindowFlag("UI21_Settings", key)).first->second;
+            };
+            const auto drawPanel = [&](const auto& panel) {
+                ImGui::PushID(static_cast<int>(panel.id));
+                const bool favorite = isFavorite(panel);
+                const float side = ImGui::GetFrameHeight();
+                ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {0, 0});
+                if (ImGui::BeginTable("##row", 2, ImGuiTableFlags_NoSavedSettings)) {
+                    ImGui::TableSetupColumn("mod", ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("favorite", ImGuiTableColumnFlags_WidthFixed, side + theme::Px(4));
+                    ImGui::TableNextColumn();
                     if (w::NavigationItem("##mod", panel.label, panel.icon, panel.selected != 0,
                                           panel.selected ? &navigationExpanded_ : nullptr)) OpenSettings(panel.id);
-                    if (panel.selected && navigationExpanded_) {
-                        ImGui::Indent(theme::Px(14));
-                        client.DrawSettingsNavigation(frame);
-                        ImGui::Unindent(theme::Px(14));
+                    ImGui::TableNextColumn();
+                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (theme::Px(44) - side) / 2);
+                    if (w::Icon("favorite", modern::icon::Star, favorite ? "Remove from favorites" : "Add to favorites", favorite))
+                    {
+                        favorites_[favoriteKey(panel)] = !favorite;
+                        theme::SaveWindowFlag("UI21_Settings", favoriteKey(panel), !favorite);
                     }
-                    ImGui::PopID();
+                    ImGui::EndTable();
                 }
+                ImGui::PopStyleVar();
+                if (panel.selected && navigationExpanded_) {
+                    ImGui::Indent(theme::Px(14));
+                    client.DrawSettingsNavigation(frame);
+                    ImGui::Unindent(theme::Px(14));
+                }
+                ImGui::PopID();
+            };
+            if (std::ranges::any_of(panels, isFavorite)) {
+                w::Heading("Favorites");
+                for (const auto& panel : panels) if (isFavorite(panel)) drawPanel(panel);
+                ImGui::Dummy({0, theme::Px(12)});
+            }
+            for (const auto& category : categories) {
+                const auto listed = [&](const auto& panel) { return category == SettingsCategory(panel.id) && !isFavorite(panel); };
+                if (!std::ranges::any_of(panels, listed)) continue;
+                w::Heading(category.c_str());
+                for (const auto& panel : panels) if (listed(panel)) drawPanel(panel);
                 ImGui::Dummy({0, theme::Px(12)});
             }
             ImGui::EndChild();

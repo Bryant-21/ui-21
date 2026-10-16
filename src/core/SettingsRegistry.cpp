@@ -1,6 +1,8 @@
 #include "core/SettingsRegistry.h"
 
 #include <algorithm>
+#include <cctype>
+#include <tuple>
 #include <cstddef>
 #include <string_view>
 
@@ -32,7 +34,29 @@ namespace b21ui::core {
 
     B21UI_ClientId SettingsRegistry::Resolve(B21UI_ClientId id) const {
         if (id) return Contains(id) ? id : 0;
-        return selected_ ? selected_ : panels_.empty() ? 0 : panels_.front().id;
+        if (selected_) return selected_;
+        if (const auto it = std::ranges::find(panels_, preferred_, &Panel::label); it != panels_.end()) return it->id;
+        return First();
+    }
+
+    // The panel the sidebar lists first: Script Extender, then other categories A-Z, B21UI last, each by label.
+    B21UI_ClientId SettingsRegistry::First() const {
+        const auto lower = [](std::string text) {
+            std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return text;
+        };
+        const auto rank = [](const Panel& panel) {
+            return panel.category == "B21UI" ? 2 : panel.category == "Script Extender" ? 0 : 1;
+        };
+        const auto first = std::ranges::min_element(panels_, [&](const Panel& a, const Panel& b) {
+            return std::tuple(rank(a), lower(a.category), lower(a.label)) < std::tuple(rank(b), lower(b.category), lower(b.label));
+        });
+        return first == panels_.end() ? 0 : first->id;
+    }
+
+    const char* SettingsRegistry::Label(B21UI_ClientId id) const {
+        for (const auto& panel : panels_) if (panel.id == id) return panel.label.c_str();
+        return "";
     }
 
     void SettingsRegistry::Select(B21UI_ClientId id) {

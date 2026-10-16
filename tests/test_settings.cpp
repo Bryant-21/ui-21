@@ -44,7 +44,7 @@ TEST_CASE("settings selection remembers a valid panel and rejects ordinary clien
     registry.Add(4, desc);
     desc.name = "Dev Tools";
     registry.Add(8, desc);
-    CHECK(registry.Resolve() == 4);
+    CHECK(registry.Resolve() == 8);
     CHECK(registry.Resolve(9) == 0);
     registry.Select(8);
     registry.Select(9);
@@ -88,4 +88,38 @@ TEST_CASE("a settings panel always pauses the game, whatever its own flag says")
     desc.kind = B21UI_KIND_OVERLAY;
     desc.flags = B21UI_FLAG_SETTINGS;
     CHECK_FALSE(b21ui::core::SettingsRegistry::PausesGame(desc));
+}
+
+TEST_CASE("settings reopen the preferred panel until one is selected") {
+    b21ui::core::SettingsRegistry registry;
+    B21UI_ClientDesc desc{};
+    desc.size = sizeof(desc);
+    desc.flags = B21UI_FLAG_SETTINGS;
+    desc.name = "Alpha";
+    registry.Add(4, desc);
+    desc.name = "Beta";
+    registry.Add(8, desc);
+    registry.Prefer("Missing");
+    CHECK(registry.Resolve() == 4);
+    registry.Prefer("Beta");
+    CHECK(registry.Resolve() == 8);
+    CHECK(std::string_view(registry.Label(8)) == "Beta");
+    registry.Select(4);
+    CHECK(registry.Resolve() == 4);
+}
+
+TEST_CASE("settings open the panel the sidebar lists first") {
+    b21ui::core::SettingsRegistry registry;
+    B21UI_ClientDesc desc{};
+    desc.size = sizeof(desc);
+    desc.flags = B21UI_FLAG_SETTINGS;
+    desc.name = "Hotkeys";
+    desc.settingsCategory = "B21UI";
+    registry.Add(1, desc);
+    desc.name = "Zed";
+    desc.settingsCategory = nullptr;
+    registry.Add(2, desc);
+    desc.name = "alpha";
+    registry.Add(3, desc);
+    CHECK(registry.Resolve() == 3);
 }

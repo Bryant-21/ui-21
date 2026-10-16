@@ -152,6 +152,13 @@ namespace b21ui::modern::icon {
     inline constexpr const char* Shuffle = "\xEF\x81\xB4";      // f074 shuffle
     inline constexpr const char* Launch = "\xEF\x82\x8E";       // f08e arrow-up-right-from-square
     inline constexpr const char* Ammo = "\xEF\x91\xA8";         // f468 boxes-stacked
+    inline constexpr const char* Camera = "\xEF\x80\xB0";       // f030 camera
+    inline constexpr const char* Bugs = "\xEF\x86\x88";         // f188 bugs
+    inline constexpr const char* PhotoFilm = "\xEF\xA1\xBC";    // f87c photo-film
+    inline constexpr const char* Water = "\xEF\x9D\xB3";        // f773 water
+    inline constexpr const char* Sun = "\xEF\x86\x85";          // f185 sun
+    inline constexpr const char* Lightbulb = "\xEF\x83\xAB";    // f0eb lightbulb
+    inline constexpr const char* Cloud = "\xEF\x83\x82";        // f0c2 cloud
     // Font Awesome Brands
     inline constexpr const char* KoFi = "\xEE\xA1\x96";         // e856 ko-fi
     inline constexpr const char* Patreon = "\xEF\x8F\x99";      // f3d9 patreon

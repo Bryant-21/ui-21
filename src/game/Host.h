@@ -52,6 +52,7 @@ namespace b21ui::game {
         std::mutex mutex_;
         core::FocusArbiter focus_;
         core::SettingsRegistry settings_;
+        bool lastPanelLoaded_{};
         core::InputTranslator translator_;
         std::vector<B21UI_Event> pending_;
         std::vector<Client> clients_;

@@ -9,8 +9,10 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
+#include <initializer_list>
 #include <limits>
 #include <span>
 #include <string>
@@ -48,6 +50,121 @@ namespace b21ui::perf {
             auto text = FormatValue(s.current, meta.unit);
             if (withAverage && s.stats.samples > 1) text += std::format("  ({})", FormatValue(s.stats.average, meta.unit));
             return text;
+        }
+
+
+        struct Trace {
+            std::span<const float> values;
+            ImU32 color;
+        };
+
+        struct SeriesStats {
+            float high{}, low{}, average{};
+        };
+
+        // One triangular pass (1 2 3 2 1): neighbouring bins differ by whole frames, so the raw trace is jagged.
+        std::vector<float> Smooth(std::span<const float> values) {
+            constexpr std::array<float, 5> kernel{1.0F, 2.0F, 3.0F, 2.0F, 1.0F};
+            std::vector<float> out(values.size());
+            for (std::size_t i = 0; i < values.size(); ++i) {
+                float sum = 0.0F, weight = 0.0F;
+                for (std::size_t k = 0; k < kernel.size(); ++k) {
+                    const auto j = static_cast<std::ptrdiff_t>(i + k) - 2;
+                    if (j < 0 || j >= static_cast<std::ptrdiff_t>(values.size())) continue;
+                    sum += kernel[k] * values[static_cast<std::size_t>(j)];
+                    weight += kernel[k];
+                }
+                out[i] = sum / weight;
+            }
+            return out;
+        }
+
+        SeriesStats StatsOf(std::span<const float> values) {
+            if (values.empty()) return {};
+            const auto [low, high] = std::ranges::minmax_element(values);
+            double sum = 0.0;
+            for (const auto v : values) sum += v;
+            return {*high, *low, static_cast<float>(sum / static_cast<double>(values.size()))};
+        }
+
+        // A plot box with a labelled value axis (top, middle, 0) and time axis (window ... now), faint grid,
+        // smoothed traces, and a dot where the first trace peaks and bottoms out.
+        void DrawGraph(const char* id, std::initializer_list<Trace> traces, float top, float windowSeconds, float width, float height) {
+            auto* list = ImGui::GetWindowDrawList();
+            const float textHeight = ImGui::GetTextLineHeight();
+            const float gutter = ImGui::CalcTextSize("0000").x + theme::Px(6);
+            const float axisHeight = textHeight + theme::Px(2);
+            const auto origin = ImGui::GetCursorScreenPos();
+            ImGui::PushID(id);
+            ImGui::Dummy({width, height});
+            ImGui::PopID();
+            const ImVec2 min{origin.x + gutter, origin.y + textHeight * 0.5F};
+            const ImVec2 max{origin.x + width, origin.y + height - axisHeight};
+            list->AddRectFilled(min, max, IM_COL32(0, 0, 0, 90));
+            const ImU32 grid = IM_COL32(255, 255, 255, 28);
+            for (int i = 0; i <= 4; ++i) {
+                const float y = max.y + (min.y - max.y) * static_cast<float>(i) / 4.0F;
+                list->AddLine({min.x, y}, {max.x, y}, grid);
+            }
+            for (int i = 1; i < 5; ++i) {
+                const float x = min.x + (max.x - min.x) * static_cast<float>(i) / 5.0F;
+                list->AddLine({x, min.y}, {x, max.y}, grid);
+            }
+            const auto axis = [&](float value, float y) {
+                const auto text = std::format("{:.0f}", value);
+                list->AddText({origin.x + gutter - theme::Px(4) - ImGui::CalcTextSize(text.c_str()).x, y - textHeight * 0.5F}, theme::Muted,
+                              text.c_str());
+            };
+            axis(top, min.y);
+            axis(top * 0.5F, (min.y + max.y) * 0.5F);
+            axis(0.0F, max.y);
+            const auto windowText = std::format("{:.0f}s", windowSeconds);
+            list->AddText({min.x, max.y + theme::Px(1)}, theme::Muted, windowText.c_str());
+            list->AddText({max.x - ImGui::CalcTextSize("0").x, max.y + theme::Px(1)}, theme::Muted, "0");
+
+            list->PushClipRect(min, max, true);
+            bool first = true;
+            std::vector<ImVec2> points;
+            for (const auto& trace : traces) {
+                if (trace.values.size() < 2) continue;
+                const auto smooth = Smooth(trace.values);
+                points.clear();
+                for (std::size_t i = 0; i < smooth.size(); ++i)
+                    points.push_back({min.x + (max.x - min.x) * static_cast<float>(i) / static_cast<float>(smooth.size() - 1),
+                                      max.y - (max.y - min.y) * std::clamp(smooth[i] / top, 0.0F, 1.0F)});
+                if (first)
+                    for (std::size_t i = 0; i + 1 < points.size(); ++i)
+                        list->AddQuadFilled(points[i], points[i + 1], {points[i + 1].x, max.y}, {points[i].x, max.y}, Fade(trace.color, 0.14F));
+                list->AddPolyline(points.data(), static_cast<int>(points.size()), trace.color, ImDrawFlags_None, theme::Px(1.6F));
+                if (first) {
+                    const auto [low, high] = std::ranges::minmax_element(smooth);
+                    list->AddCircleFilled(points[static_cast<std::size_t>(high - smooth.begin())], theme::Px(3), trace.color);
+                    list->AddCircleFilled(points[static_cast<std::size_t>(low - smooth.begin())], theme::Px(3), trace.color);
+                }
+                first = false;
+            }
+            list->PopClipRect();
+            list->AddRect(min, max, IM_COL32(255, 255, 255, 40));
+        }
+
+        // A colour swatch, a name and a right-aligned value, the way PresentMon lists its series.
+        void DrawLegendRow(ImU32 color, const char* label, const std::string& value, float valueX) {
+            const float side = ImGui::GetTextLineHeight() * 0.7F;
+            const auto pos = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled({pos.x, pos.y + (ImGui::GetTextLineHeight() - side) * 0.5F},
+                                                      {pos.x + side, pos.y + (ImGui::GetTextLineHeight() + side) * 0.5F}, color);
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + side + theme::Px(6));
+            ImGui::PushStyleColor(ImGuiCol_Text, theme::Text);
+            ImGui::TextUnformatted(label);
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(valueX);
+            w::Mono(value, color);
+        }
+
+        std::string ReadoutText(const SeriesStats& stats, const char* unit, int decimals) {
+            return std::format("High {:.{}f}   Low {:.{}f}   Avg {:.{}f} {}", stats.high, decimals, stats.low, decimals, stats.average,
+                               decimals, unit);
         }
 
         void DrawLines(const std::vector<Line>& lines, ImU32 hud) {
@@ -175,12 +292,39 @@ namespace b21ui::perf {
                                               std::span<const double>(timedTimes_).first(timed), host.Now(), kGraphWindowSeconds,
                                               kGraphBins / 2);
                 if (!series.empty()) {
-                    const float top = GraphTop(*std::ranges::max_element(series), 16.7F);
-                    ImGui::PushStyleColor(ImGuiCol_PlotLines, hud);
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 90));
-                    ImGui::PlotLines("##frames", series.data(), static_cast<int>(series.size()), 0, nullptr, 0.0F,
-                                     std::max(top, 33.4F), {std::max(theme::Px(260), ImGui::GetContentRegionAvail().x), theme::Px(56)});
-                    ImGui::PopStyleColor(2);
+                    std::vector<float> fps(series.size());
+                    for (std::size_t i = 0; i < series.size(); ++i) fps[i] = series[i] > 0.0F ? 1000.0F / series[i] : 0.0F;
+                    const auto fpsStats = StatsOf(fps);
+                    const auto lows = FrameLows(history_);
+                    const float valueX = ImGui::GetCursorPosX() + theme::Px(150);
+                    ImGui::Dummy({0, theme::Px(2)});
+                    DrawLegendRow(hud, "FPS (avg)", std::format("{:.1f} fps", fpsStats.average), valueX);
+                    DrawLegendRow(theme::Error, "FPS (1% low)", std::format("{:.1f} fps", lows.low1Fps), valueX);
+                    DrawLegendRow(theme::Warn, "FPS (0.1% low)", std::format("{:.1f} fps", lows.low01Fps), valueX);
+                    const float graphWidth = std::max(theme::Px(300), ImGui::GetContentRegionAvail().x);
+                    const float fpsTop = std::max(GraphTop(fpsStats.high, 30.0F), 60.0F);
+                    DrawGraph("fps", {{fps, hud}}, fpsTop, static_cast<float>(kGraphWindowSeconds), graphWidth, theme::Px(92));
+                    ImGui::PushStyleColor(ImGuiCol_Text, theme::Muted);
+                    ImGui::TextUnformatted(ReadoutText(fpsStats, "fps", 0).c_str());
+                    ImGui::PopStyleColor();
+
+                    gpuTimedValues_.resize(MetricStore::kHistory);
+                    gpuTimedTimes_.resize(MetricStore::kHistory);
+                    const auto gpuTimed = store.HistoryTimed(core.gpuMs, gpuTimedValues_.data(), gpuTimedTimes_.data(), MetricStore::kHistory);
+                    const auto gpuSeries = BinByTime(std::span<const float>(gpuTimedValues_).first(gpuTimed),
+                                                     std::span<const double>(gpuTimedTimes_).first(gpuTimed), host.Now(),
+                                                     kGraphWindowSeconds, kGraphBins / 2);
+                    const auto msStats = StatsOf(series);
+                    const auto gpuStats = StatsOf(gpuSeries);
+                    ImGui::Dummy({0, theme::Px(6)});
+                    DrawLegendRow(hud, "Frame time (avg)", std::format("{:.2f} ms", msStats.average), valueX);
+                    if (!gpuSeries.empty()) DrawLegendRow(theme::Warn, "GPU busy (avg)", std::format("{:.2f} ms", gpuStats.average), valueX);
+                    const float msTop = std::max(GraphTop(std::max(msStats.high, gpuStats.high), 16.7F), 33.4F);
+                    DrawGraph("frametime", {{series, hud}, {gpuSeries, theme::Warn}}, msTop, static_cast<float>(kGraphWindowSeconds), graphWidth,
+                              theme::Px(92));
+                    ImGui::PushStyleColor(ImGuiCol_Text, theme::Muted);
+                    ImGui::TextUnformatted(ReadoutText(msStats, "ms", 1).c_str());
+                    ImGui::PopStyleColor();
                 }
                 // Text is rebuilt four times a second: formatting every metric each frame cost more than the
                 // overlay draw, and values that change every frame cannot be read anyway.
@@ -202,10 +346,6 @@ namespace b21ui::perf {
             void BuildLines(Host& host, std::uint32_t mode) {
                 auto& store = host.Store();
                 auto& lines = pinnedLines_;
-                const auto lows = FrameLows(history_);
-                lines.push_back({"1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low1Fps)});
-                lines.push_back({"0.1% low", history_.empty() ? "n/a" : std::format("{:.1f} FPS", lows.low01Fps)});
-
                 const auto count = store.Count();
                 std::vector<const MetricMeta*> metas;
                 std::vector<PinView> views;
@@ -246,6 +386,8 @@ namespace b21ui::perf {
             std::vector<float> history_;
             std::vector<float> timedValues_;
             std::vector<double> timedTimes_;
+            std::vector<float> gpuTimedValues_;
+            std::vector<double> gpuTimedTimes_;
             std::vector<float> gpuHistory_;
             std::vector<Line> pinnedLines_, fullLines_;
             double linesAt_ = -1.0;

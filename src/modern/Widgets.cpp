@@ -25,9 +25,17 @@ namespace b21ui::modern::w {
             const float margin = theme::Px(8);
             const float x = std::clamp(anchor.x - width, viewport->WorkPos.x + margin,
                                        viewport->WorkPos.x + viewport->WorkSize.x - width - margin);
+            const float top = viewport->WorkPos.y, bottom = top + viewport->WorkSize.y;
+            // An anchor in the lower half (a bottom-docked console) opens the popover upward.
+            if (anchor.y > top + viewport->WorkSize.y / 2) {
+                const float y = ImGui::GetItemRectMin().y - theme::Px(6);
+                ImGui::SetNextWindowPos({std::floor(x), std::floor(y)}, ImGuiCond_None, {0, 1});
+                ImGui::SetNextWindowSizeConstraints({width, 0}, {width, std::max(1.0F, y - top - margin)});
+                return;
+            }
             const float y = anchor.y + theme::Px(6);
             ImGui::SetNextWindowPos({std::floor(x), std::floor(y)});
-            ImGui::SetNextWindowSizeConstraints({width, 0}, {width, std::max(1.0F, viewport->WorkPos.y + viewport->WorkSize.y - y - margin)});
+            ImGui::SetNextWindowSizeConstraints({width, 0}, {width, std::max(1.0F, bottom - y - margin)});
         }
 
         const nlohmann::json& EmptyObject() {
@@ -604,7 +612,7 @@ namespace b21ui::modern::w {
         return open;
     }
 
-    bool QuickSettings(const char* id, QuickSettingsState& state, const std::function<void()>& rows, const char* tooltip) {
+    bool QuickSettings(const char* id, QuickSettingsState& state, const std::function<void()>& rows, const char* tooltip, float width) {
         ImGui::PushID(id);
         // ImGui owns the popup's open state (outside clicks and Esc close it); state.open only mirrors it. A cog click
         // while the popup is open already closed it on mouse-down, so its release must not reopen it.
@@ -615,8 +623,8 @@ namespace b21ui::modern::w {
             ImGui::OpenPopup("##quick");
         }
         const auto* viewport = ImGui::GetMainViewport();
-        const float width = std::min(theme::Px(340), viewport->WorkSize.x - theme::Px(16));
-        PositionPopover("##quick", width);
+        const float popoverWidth = std::min(theme::Px(width), viewport->WorkSize.x - theme::Px(16));
+        PositionPopover("##quick", popoverWidth);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {theme::Px(16), theme::Px(14)});
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {theme::Px(8), theme::Px(8)});
         state.open = ImGui::BeginPopup("##quick", ImGuiWindowFlags_NoSavedSettings);

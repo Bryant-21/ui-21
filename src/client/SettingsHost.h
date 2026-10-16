@@ -2,6 +2,7 @@
 #include "b21ui/B21UI.h"
 #include "b21ui/modern/Widgets.h"
 
+#include <map>
 #include <string>
 
 namespace b21ui::client {
@@ -20,6 +21,7 @@ namespace b21ui::client {
         bool fullscreen_{};
         bool navigationExpanded_{};
         bool navigationRestored_{};
+        std::map<std::string, bool> favorites_;
         modern::w::QuickSettingsState appearance_;
     };
 }

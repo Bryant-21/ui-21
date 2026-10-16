@@ -15,11 +15,13 @@
 #include "game/PerfRuntime.h"
 #include "perf/PerfHost.h"
 #include "b21ui/Tasks.h"
+#include "b21ui/modern/Theme.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace b21ui::game {
     namespace {
@@ -182,6 +184,8 @@ namespace b21ui::game {
         B21UI_ClientDesc closed{}, opened{};
         {
             std::scoped_lock guard(mutex_);
+            if (!std::exchange(lastPanelLoaded_, true))
+                settings_.Prefer(modern::theme::SavedWindowText("UI21_Settings", "LastPanel"));
             const auto target = settings_.Resolve(id);
             if (!target) return false;
             const auto current = focus_.Focused();
@@ -191,6 +195,7 @@ namespace b21ui::game {
             focus_.Close(current);
             focus_.Open(target);
             settings_.Select(target);
+            modern::theme::SaveWindowText("UI21_Settings", "LastPanel", settings_.Label(target));
             wantsGameState_ = focus_.WantsGameState();
             anyOpen_ = !focus_.RenderOrder().empty();
             opened = Find(target)->desc;

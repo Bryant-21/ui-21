@@ -98,14 +98,14 @@ namespace b21ui::modern::w {
                                  ImVec2 defaultSize, ImVec2& size);
 
     // The cog and its popover: the client's own rows (if any), then Appearance. Set
-    // `toggleRequested` from a hotkey to open or close it.
+    // `toggleRequested` from a hotkey to open or close it. `width` is in unscaled pixels.
     struct QuickSettingsState {
         bool open = false;
         bool toggleRequested = false;
         bool openAtClick = false;
     };
     bool QuickSettings(const char* id, QuickSettingsState& state, const std::function<void()>& rows = {},
-                       const char* tooltip = "Quick settings");
+                       const char* tooltip = "Quick settings", float width = 340.0F);
 
     // The eye: click to toggle the peek, press and hold to peek while held. Returns true while peeking.
     bool PeekButton(const char* id, Peek& peek);
