@@ -17,6 +17,7 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include <thread>
 
 namespace b21ui::game::McmRuntime {
     namespace {
@@ -28,6 +29,18 @@ namespace b21ui::game::McmRuntime {
         std::map<std::string, std::string> translations;
         Session session;
         std::string activeMenu;
+        std::atomic<bool> flushQueued{};
+
+        void SetFromScript(std::string_view mod, std::string_view id, const Json& value) {
+            if (!settings.SetDeferred(mod, id, value)) return;
+            ++revision;
+            if (flushQueued.exchange(true)) return;
+            std::thread([] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                flushQueued = false;
+                settings.Flush();
+            }).detach();
+        }
 
         bool OriginalInstalled() {
             return !ReplacementEnabled("Data/F4SE/Plugins", ::GetModuleHandleW(L"mcm.dll") || ::GetModuleHandleW(L"f4mcm.dll"));
@@ -348,10 +361,10 @@ namespace b21ui::game::McmRuntime {
             vm->BindNativeMethod("MCM", "GetModSettingString", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id) {
                 const auto value = settings.Get(mod.c_str(), id.c_str()); return RE::BSFixedString(value.is_string() ? value.get<std::string>().c_str() : "");
             });
-            vm->BindNativeMethod("MCM", "SetModSettingInt", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, int value) { settings.Set(mod.c_str(), id.c_str(), value); ++revision; });
-            vm->BindNativeMethod("MCM", "SetModSettingBool", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, bool value) { settings.Set(mod.c_str(), id.c_str(), value); ++revision; });
-            vm->BindNativeMethod("MCM", "SetModSettingFloat", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, float value) { settings.Set(mod.c_str(), id.c_str(), value); ++revision; });
-            vm->BindNativeMethod("MCM", "SetModSettingString", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, RE::BSFixedString value) { settings.Set(mod.c_str(), id.c_str(), value.c_str()); ++revision; });
+            vm->BindNativeMethod("MCM", "SetModSettingInt", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, int value) { SetFromScript(mod.c_str(), id.c_str(), value); });
+            vm->BindNativeMethod("MCM", "SetModSettingBool", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, bool value) { SetFromScript(mod.c_str(), id.c_str(), value); });
+            vm->BindNativeMethod("MCM", "SetModSettingFloat", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, float value) { SetFromScript(mod.c_str(), id.c_str(), value); });
+            vm->BindNativeMethod("MCM", "SetModSettingString", +[](std::monostate, RE::BSFixedString mod, RE::BSFixedString id, RE::BSFixedString value) { SetFromScript(mod.c_str(), id.c_str(), value.c_str()); });
             spdlog::info("UI21: registered native MCM Papyrus API v{}", Version);
             return true;
         }

@@ -330,16 +330,37 @@ namespace b21ui::mcm {
         const auto setting = found->second.find(std::string(id));
         return setting == found->second.end() ? Json{} : setting->second;
     }
-    bool SettingsStore::Set(std::string_view mod, std::string_view id, const Json& value) {
+    bool SettingsStore::Update(std::string_view mod, std::string_view id, const Json& value) {
         if (!SafeName(mod) || id.find_first_of("\r\n=") != id.npos) return false;
         if (value.is_string() && value.get_ref<const std::string&>().find_first_of("\r\n") != std::string::npos) return false;
-        std::scoped_lock guard(mutex_);
         auto found = mods_.find(std::string(mod));
         if (found == mods_.end() || !found->second.contains(std::string(id))) return false;
-        auto values = overrides_[std::string(mod)];
-        values[std::string(id)] = value;
+        found->second[std::string(id)] = value;
+        overrides_[std::string(mod)][std::string(id)] = value;
+        dirty_.emplace(mod);
+        return true;
+    }
+    bool SettingsStore::Set(std::string_view mod, std::string_view id, const Json& value) {
+        std::scoped_lock guard(mutex_);
+        return Update(mod, id, value) && Write(std::string(mod));
+    }
+    bool SettingsStore::SetDeferred(std::string_view mod, std::string_view id, const Json& value) {
+        std::scoped_lock guard(mutex_);
+        return Update(mod, id, value);
+    }
+    void SettingsStore::Flush() {
+        std::scoped_lock guard(mutex_);
+        for (const auto mods = dirty_; const auto& mod : mods) Write(mod);
+    }
+    SettingsStore::~SettingsStore() {
+        // At process exit a flush thread may have died holding the lock; never wait on it.
+        if (!mutex_.try_lock()) return;
+        for (const auto mods = dirty_; const auto& mod : mods) Write(mod);
+        mutex_.unlock();
+    }
+    bool SettingsStore::Write(const std::string& mod) {
         std::map<std::string, std::map<std::string, Json>> sections;
-        for (const auto& [key, setting] : values) {
+        for (const auto& [key, setting] : overrides_[mod]) {
             const auto colon = key.find(':');
             sections[colon == key.npos ? "" : key.substr(colon + 1)][key.substr(0, colon)] = setting;
         }
@@ -350,9 +371,8 @@ namespace b21ui::mcm {
                 text += key + "=" + (setting.is_boolean() ? setting.get<bool>() ? "1" : "0" :
                     setting.is_string() ? "\"" + String(setting) + "\"" : String(setting)) + "\n";
         }
-        if (!Save(root_ / "Settings" / (std::string(mod) + ".ini"), text)) return false;
-        found->second[std::string(id)] = value;
-        overrides_[std::string(mod)] = std::move(values);
+        if (!Save(root_ / "Settings" / (mod + ".ini"), text)) return false;
+        dirty_.erase(mod);
         return true;
     }
 

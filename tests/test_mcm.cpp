@@ -156,6 +156,24 @@ TEST_CASE("MCM INI defaults and saved overrides round trip all supported types")
     const std::string text((std::istreambuf_iterator<char>(saved)), {});
     CHECK(text.find("iCount=99") == std::string::npos);
 }
+TEST_CASE("MCM deferred settings stay in memory until flushed or destroyed") {
+    Fixture fixture;
+    fixture.Write("Config/Demo/settings.ini", "[Main]\niCount=2\nfSpeed=1.0\n");
+    const auto reload = [&](std::string_view id) { SettingsStore loaded; loaded.Load(fixture.root); return loaded.Get("Demo", id); };
+    {
+        SettingsStore store;
+        store.Load(fixture.root);
+        for (int i = 0; i < 100; ++i) CHECK(store.SetDeferred("Demo", "iCount:Main", i));
+        CHECK_FALSE(store.SetDeferred("Demo", "missing:Main", 1));
+        CHECK(store.Get("Demo", "iCount:Main") == 99);
+        CHECK(reload("iCount:Main") == 2);
+        store.Flush();
+        CHECK(reload("iCount:Main") == 99);
+        CHECK(store.SetDeferred("Demo", "fSpeed:Main", 3.5F));
+    }
+    CHECK(reload("fSpeed:Main").get<float>() == doctest::Approx(3.5F));
+    CHECK(reload("iCount:Main") == 99);
+}
 TEST_CASE("MCM catalog merges extension pages and keeps malformed mods visible") {
     Fixture fixture;
     fixture.Write("Config/Demo/config.json", Config().dump());

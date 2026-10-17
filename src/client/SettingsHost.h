@@ -19,6 +19,7 @@ namespace b21ui::client {
         bool closeArmed_{};
         bool popupWasOpen_{};
         bool fullscreen_{};
+        bool autoExpand_{};
         bool navigationExpanded_{};
         bool navigationRestored_{};
         std::map<std::string, bool> favorites_;

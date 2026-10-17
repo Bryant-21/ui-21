@@ -5,6 +5,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -65,12 +66,19 @@ namespace b21ui::mcm {
         void Load(const std::filesystem::path& mcmDir);
         Json Get(std::string_view mod, std::string_view id) const;
         bool Set(std::string_view mod, std::string_view id, const Json& value);
+        // Memory only; the ini is written by the next Flush (scripts call the setters in loops).
+        bool SetDeferred(std::string_view mod, std::string_view id, const Json& value);
+        void Flush();
+        ~SettingsStore();
     private:
+        bool Update(std::string_view mod, std::string_view id, const Json& value);
+        bool Write(const std::string& mod);
         void ReadIni(const std::string& mod, const std::filesystem::path& path, bool user = false);
         mutable std::mutex mutex_;
         std::filesystem::path root_;
         std::map<std::string, std::map<std::string, Json>> mods_;
         std::map<std::string, std::map<std::string, Json>> overrides_;
+        std::set<std::string> dirty_;
     };
 
     struct Binding {

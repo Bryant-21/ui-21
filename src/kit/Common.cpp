@@ -10,7 +10,12 @@
 #include <array>
 #include <atomic>
 #include <format>
+#include <fstream>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <vector>
 
 namespace b21ui::common {
     namespace {
@@ -66,17 +71,38 @@ namespace b21ui::common {
         return std::filesystem::path(windows) / "Fonts" / name;
     }
 
+    namespace {
+        // Every client context loads the same few files; read each once and lend the bytes to every atlas.
+        // Never freed: atlases keep reading the data for as long as they live.
+        const std::vector<char>* FontBytes(const std::filesystem::path& file) {
+            static std::mutex mutex;
+            static std::map<std::filesystem::path, std::unique_ptr<std::vector<char>>> cache;
+            std::scoped_lock guard(mutex);
+            auto& bytes = cache[file];
+            if (!bytes) {
+                std::ifstream stream(file, std::ios::binary);
+                bytes = std::make_unique<std::vector<char>>(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+            }
+            return bytes->empty() ? nullptr : bytes.get();
+        }
+
+        ImFont* AddFont(const std::filesystem::path& file, ImFontConfig config = {}) {
+            const auto* bytes = FontBytes(file);
+            if (!bytes) return nullptr;
+            config.FontDataOwnedByAtlas = false;
+            return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(const_cast<char*>(bytes->data()), static_cast<int>(bytes->size()), 0.0F,
+                                                             &config);
+        }
+    }
+
     ImFont* LoadFont(const std::filesystem::path& file, std::span<const FontMerge> merge) {
-        if (!std::filesystem::exists(file)) return nullptr;
-        auto& io = ImGui::GetIO();
-        auto* font = io.Fonts->AddFontFromFileTTF(file.string().c_str());
+        auto* font = AddFont(file);
         if (!font) return nullptr;
         for (const auto& extra : merge) {
-            if (!std::filesystem::exists(extra.file)) continue;
             ImFontConfig config;
             config.MergeMode = true;
             config.GlyphOffset = extra.glyphOffset;
-            io.Fonts->AddFontFromFileTTF(extra.file.string().c_str(), 0.0F, &config);
+            AddFont(extra.file, config);
         }
         return font;
     }

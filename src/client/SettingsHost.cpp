@@ -24,9 +24,12 @@ namespace b21ui::client {
         namespace w = modern::w;
         theme::SetAppearanceClient("UI21_Settings");
         theme::Apply(std::max(1.0F, frame.height / 1080.0F));
-        fullscreen_ = theme::SavedFullscreen("UI21_Settings");
-        const bool autoExpand = theme::SavedWindowFlag("UI21_Settings", "ExpandModSettings");
-        if (!std::exchange(navigationRestored_, true)) navigationExpanded_ = autoExpand;
+        if (!std::exchange(navigationRestored_, true)) {
+            fullscreen_ = theme::SavedFullscreen("UI21_Settings");
+            autoExpand_ = theme::SavedWindowFlag("UI21_Settings", "ExpandModSettings");
+            navigationExpanded_ = autoExpand_;
+        }
+        const bool autoExpand = autoExpand_;
         const auto popupOpen = [] {
             return ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
         };
@@ -62,7 +65,7 @@ namespace b21ui::client {
                 w::Heading("Mod list");
                 if (w::Switch("Expand mod settings on open", autoExpand)) {
                     theme::SaveWindowFlag("UI21_Settings", "ExpandModSettings", !autoExpand);
-                    navigationExpanded_ = !autoExpand;
+                    autoExpand_ = navigationExpanded_ = !autoExpand;
                 }
             }, "Settings appearance");
             ImGui::SameLine();
